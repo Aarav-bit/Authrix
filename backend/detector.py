@@ -334,13 +334,17 @@ class DecisionAgent:
         face_crops_per_frame: list[list[np.ndarray]],
     ) -> dict:
         """
-        Aggregate predictions across all frames and faces.
+        Aggregate predictions with adaptive scoring.
 
-        Scoring strategy (balanced for precision AND recall):
-        - Skip blurry/low-quality face crops
-        - Use MEAN of valid face scores per frame (not max — max causes false positives)
-        - Final score = 70% mean + 30% p60 (mild upward nudge for genuinely fake videos)
-        - Require at least 3 valid frames before trusting the result
+        Key insight: deepfakes have CONSISTENTLY elevated scores across many
+        frames, while false positives on real videos tend to have a few
+        outlier frames with high scores but low overall consistency.
+
+        Strategy:
+        - Quality-gate blurry crops
+        - Per-frame: mean of valid face scores
+        - Final: weighted blend of mean + median (robust to outliers)
+        - Also return consistency metrics for adaptive thresholding
         """
         frame_scores = []
         frames_with_faces = 0
@@ -361,7 +365,6 @@ class DecisionAgent:
                 continue
 
             frames_with_faces += 1
-            # Mean across valid faces in this frame (not max)
             frame_score = float(np.mean(valid_probs))
             frame_scores.append({"frame_index": i, "fake_probability": round(frame_score, 4)})
 
@@ -371,37 +374,46 @@ class DecisionAgent:
         if not frame_scores:
             return {
                 "frame_scores": [],
-                "overall_fake_probability": 0.45,  # lean toward REAL when no data
+                "overall_fake_probability": 0.40,
                 "frames_analyzed": len(frames),
                 "frames_with_faces": 0,
+                "consistency": 0.0,
+                "face_coverage": 0.0,
             }
 
         probs = [s["fake_probability"] for s in frame_scores]
 
-        # Need at least 3 valid frames for a reliable result
         if len(probs) < 3:
-            logger.info(f"Only {len(probs)} valid frames — low confidence result")
-            overall = float(np.mean(probs)) * 0.85  # dampen uncertain results
+            overall = float(np.mean(probs)) * 0.80
         else:
-            mean_prob = float(np.mean(probs))
-            p60_prob  = float(np.percentile(probs, 60))
-            # 70% mean + 30% p60 — mild nudge, won't over-amplify outliers
-            overall   = mean_prob * 0.70 + p60_prob * 0.30
+            mean_prob   = float(np.mean(probs))
+            median_prob = float(np.median(probs))
+            # Mean+median blend: robust to both outliers and sparse fakes
+            overall = mean_prob * 0.65 + median_prob * 0.35
 
         overall = round(float(np.clip(overall, 0.0, 1.0)), 4)
 
+        # Consistency: fraction of frames above 0.50 — high for real deepfakes
+        consistency = sum(1 for p in probs if p > 0.50) / len(probs)
+
+        # Face coverage: how much of the video had detectable faces
+        face_coverage = frames_with_faces / max(len(frames), 1)
+
         logger.info(
-            f"Scores — mean: {float(np.mean(probs)):.3f}, "
-            f"p60: {float(np.percentile(probs, 60)):.3f}, "
-            f"final: {overall:.3f} "
-            f"({frames_with_faces}/{len(frames)} frames had usable faces)"
+            f"Scores — mean:{float(np.mean(probs)):.3f} "
+            f"median:{float(np.median(probs)):.3f} "
+            f"final:{overall:.3f} "
+            f"consistency:{consistency:.2f} "
+            f"coverage:{face_coverage:.2f}"
         )
 
         return {
-            "frame_scores": frame_scores,
+            "frame_scores":    frame_scores,
             "overall_fake_probability": overall,
             "frames_analyzed": len(frames),
             "frames_with_faces": frames_with_faces,
+            "consistency":     round(consistency, 3),
+            "face_coverage":   round(face_coverage, 3),
         }
 
 
@@ -410,16 +422,40 @@ class DecisionAgent:
 # Builds the final human-readable report
 # ─────────────────────────────────────────────
 class ReportGeneratorAgent:
-    FAKE_THRESHOLD = 0.65   # Higher threshold = fewer false positives on real videos
+    # Base threshold — adjusted adaptively per video
+    BASE_THRESHOLD = 0.58
 
     def generate(self, analysis: dict, metadata: dict) -> dict:
-        prob       = analysis["overall_fake_probability"]
+        prob        = analysis["overall_fake_probability"]
+        consistency = analysis.get("consistency", 0.5)
+        coverage    = analysis.get("face_coverage", 0.5)
+
+        # ── Adaptive threshold ────────────────────────────────────────
+        # Lower threshold when:
+        #   - High consistency (many frames agree it's fake) → easier to flag
+        #   - High face coverage (face visible throughout) → more reliable signal
+        # Raise threshold when:
+        #   - Low consistency (only a few frames look fake) → likely false positive
+        #   - Low coverage (face rarely visible) → unreliable signal
+        threshold = self.BASE_THRESHOLD
+        if consistency >= 0.70 and coverage >= 0.50:
+            threshold -= 0.06   # 0.52 — confident signal, lower bar
+        elif consistency >= 0.55:
+            threshold -= 0.03   # 0.55
+        elif consistency < 0.35:
+            threshold += 0.07   # 0.65 — inconsistent, raise bar
+
+        is_fake    = prob >= threshold
         calibrated = self._calibrate(prob)
         confidence = round(calibrated * 100, 1)
-        is_fake    = prob >= self.FAKE_THRESHOLD
         result     = "FAKE" if is_fake else "REAL"
 
-        details        = self._build_details(analysis, metadata, prob, is_fake)
+        logger.info(
+            f"Decision: prob={prob:.3f} threshold={threshold:.3f} "
+            f"consistency={consistency:.2f} coverage={coverage:.2f} → {result}"
+        )
+
+        details        = self._build_details(analysis, metadata, prob, is_fake, threshold)
         frame_timeline = self._build_timeline(analysis.get("frame_scores", []))
 
         return {
@@ -438,16 +474,11 @@ class ReportGeneratorAgent:
 
     @staticmethod
     def _calibrate(prob: float) -> float:
-        """
-        Gentle calibration — only stretch scores that are clearly above/below 0.5.
-        Avoids over-inflating borderline scores (0.55-0.65 range).
-        """
-        x = (prob - 0.5) * 2.5      # gentler amplification than before
-        stretched = np.tanh(x) * 0.5 + 0.5
-        return float(np.clip(stretched, 0.01, 0.99))
+        x = (prob - 0.5) * 2.8
+        return float(np.clip(np.tanh(x) * 0.5 + 0.5, 0.01, 0.99))
 
     def _build_details(
-        self, analysis: dict, metadata: dict, prob: float, is_fake: bool
+        self, analysis: dict, metadata: dict, prob: float, is_fake: bool, threshold: float = 0.58
     ) -> list[str]:
         details = []
         frame_scores     = analysis.get("frame_scores", [])
