@@ -340,11 +340,10 @@ class AudioReportAgent:
         # If visual says FAKE (high prob) but audio says HUMAN → mismatch
         av_mismatch = False
         av_mismatch_score = 0.0
-        if visual_fake_prob >= 0.55 and model_prob < 0.50:
-            # Visual strongly fake, audio sounds human → classic face-swap
+        if visual_fake_prob >= 0.45 and model_prob < 0.55:
+            # Visual shows manipulation signs, audio sounds human → face-swap
             av_mismatch = True
             av_mismatch_score = visual_fake_prob * 0.6
-            # Boost audio fake probability to reflect the mismatch
             combined = max(combined, av_mismatch_score)
             logger.info(
                 f"Audio-visual mismatch detected: visual_fake={visual_fake_prob:.2f} "

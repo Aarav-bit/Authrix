@@ -446,29 +446,28 @@ class ReportGeneratorAgent:
         audio_prob = 0.0
         if audio and audio.get("available"):
             audio_prob = audio.get("fake_probability", 0.0)
-            # AV_MISMATCH counts as fake — face-swap with dubbed audio
             audio_fake = audio.get("result") in ("AI_VOICE", "AV_MISMATCH")
 
-        # Final verdict: visual is primary, audio can upgrade OR downgrade
-        if audio and audio.get("available"):
+        # ── Determine final verdict ───────────────────────────────────
+        # AV_MISMATCH is a hard override — face-swap confirmed
+        if audio and audio.get("result") == "AV_MISMATCH":
+            is_fake    = True
+            calibrated = self._calibrate(max(prob, 0.72))
+            logger.info("AV_MISMATCH hard override → FAKE")
+        elif audio and audio.get("available"):
             if visual_fake and audio_fake:
                 is_fake = True
             elif not visual_fake and not audio_fake:
                 is_fake = False
             elif visual_fake and not audio_fake:
-                # Audio says real — only keep FAKE if visual is strong
                 is_fake = prob >= (threshold + 0.05)
             else:
-                # Visual says real but audio says AI/mismatch
-                # AV_MISMATCH is a very strong signal — override visual
-                if audio.get("result") == "AV_MISMATCH":
-                    is_fake = True   # face-swap confirmed by mismatch
-                else:
-                    is_fake = audio_prob >= 0.75
+                is_fake = audio_prob >= 0.75
+            calibrated = self._calibrate(prob)
         else:
-            is_fake = visual_fake
+            is_fake    = visual_fake
+            calibrated = self._calibrate(prob)
 
-        calibrated = self._calibrate(prob)
         confidence = round(calibrated * 100, 1)
         result     = "FAKE" if is_fake else "REAL"
 
