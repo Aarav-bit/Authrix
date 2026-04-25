@@ -1,20 +1,20 @@
 {
   "manifest_version": 3,
   "name": "Authrix — Deepfake Detector",
-  "version": "1.0.0",
-  "description": "Detect deepfake videos on any webpage using AI. Right-click any video or use the toolbar popup.",
+  "version": "2.0.0",
+  "description": "Detect deepfake videos on any webpage. Captures tab stream directly — no download needed. Works on YouTube, Twitter, any platform.",
 
   "permissions": [
     "contextMenus",
     "activeTab",
     "scripting",
     "storage",
-    "notifications"
+    "tabCapture",
+    "tabs"
   ],
 
   "host_permissions": [
-    "http://localhost:8000/*",
-    "<all_urls>"
+    "http://localhost:8000/*"
   ],
 
   "background": {
@@ -31,7 +31,7 @@
 
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Authrix Deepfake Detector",
+    "default_title": "Authrix — Analyze this video",
     "default_icon": {
       "16":  "icons/icon16.png",
       "48":  "icons/icon48.png",
