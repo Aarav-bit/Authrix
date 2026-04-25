@@ -273,12 +273,12 @@
 <nav class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-emerald-950/20 backdrop-blur-xl border-b border-emerald-500/20 shadow-[0_4px_20px_rgba(0,0,0,0.5)] font-['Space_Grotesk'] tracking-wider uppercase text-xs">
   <!-- Brand -->
   <div class="flex items-center gap-8">
-    <span class="text-2xl font-black tracking-tighter text-emerald-400 drop-shadow-[0_0_8px_rgba(0,255,156,0.5)]">AUTHRIX AI</span>
+    <span onclick="showState('heroSection')" class="text-2xl font-black tracking-tighter text-emerald-400 drop-shadow-[0_0_8px_rgba(0,255,156,0.5)] cursor-pointer">AUTHRIX AI</span>
     <div class="hidden md:flex items-center gap-6">
-      <a class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 py-1 px-2 rounded-sm" href="#">Dashboard</a>
-      <a class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 py-1 px-2 rounded-sm" href="#">Agents</a>
-      <a class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 py-1 px-2 rounded-sm" href="#">Logs</a>
-      <a class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 py-1 px-2 rounded-sm" href="#">Network</a>
+      <a onclick="showState('heroSection')" class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 py-1 px-2 rounded-sm cursor-pointer">Dashboard</a>
+      <a onclick="openModal('agentsModal')" class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 py-1 px-2 rounded-sm cursor-pointer">Agents</a>
+      <a onclick="openModal('logsModal')" class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 py-1 px-2 rounded-sm cursor-pointer">Logs</a>
+      <a onclick="openModal('networkModal')" class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 py-1 px-2 rounded-sm cursor-pointer">Network</a>
     </div>
   </div>
   <!-- Actions -->
@@ -737,6 +737,126 @@
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════
+     MODALS
+════════════════════════════════════════════════════════════ -->
+<style>
+  .modal-backdrop {
+    position:fixed;inset:0;z-index:200;
+    background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);
+    display:flex;align-items:center;justify-content:center;padding:24px;
+    animation:fadeIn 0.2s ease;
+  }
+  .modal-box {
+    background:#141e17;border:1px solid rgba(0,255,156,0.2);border-radius:12px;
+    width:100%;max-width:640px;max-height:80vh;overflow-y:auto;
+    box-shadow:0 0 60px rgba(0,255,156,0.1);animation:slideUp 0.25s ease;
+  }
+  @keyframes slideUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:none;}}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid rgba(0,255,156,0.1);}
+  .modal-body{padding:20px 24px 24px;}
+  .modal-close{background:none;border:none;cursor:pointer;color:#849587;font-size:18px;padding:4px 8px;border-radius:4px;transition:color 0.2s;font-family:inherit;}
+  .modal-close:hover{color:#ffb4ab;}
+  .agent-row{display:flex;align-items:flex-start;gap:14px;padding:14px;border-radius:8px;background:rgba(35,44,37,0.3);border:1px solid rgba(0,255,156,0.08);margin-bottom:10px;}
+  .agent-icon{width:40px;height:40px;border-radius:8px;flex-shrink:0;background:rgba(0,255,156,0.08);border:1px solid rgba(0,255,156,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;}
+  .log-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-family:'Space Grotesk',monospace;font-size:12px;gap:12px;}
+  .log-row:last-child{border-bottom:none;}
+  .net-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-radius:6px;background:rgba(35,44,37,0.3);border:1px solid rgba(0,255,156,0.08);margin-bottom:8px;font-family:'Space Grotesk',monospace;font-size:12px;}
+</style>
+
+<!-- Agents Modal -->
+<div id="agentsModal" style="display:none;" class="modal-backdrop" onclick="if(event.target===this)closeModal('agentsModal')">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.15em;color:#00ff9c;text-transform:uppercase;">AGENT PIPELINE</div>
+        <div style="font-size:12px;color:#849587;margin-top:4px;">5 specialized AI agents run in sequence</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('agentsModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="agent-row">
+        <div class="agent-icon">🎬</div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:#dae5da;">Frame Analyzer Agent</div>
+          <div style="font-size:12px;color:#849587;margin-top:4px;line-height:1.5;">Extracts 40 frames uniformly across the full video using OpenCV. Uniform temporal sampling ensures coverage regardless of video length.</div>
+          <div style="margin-top:6px;font-size:10px;font-weight:700;letter-spacing:0.1em;color:rgba(0,255,156,0.5);text-transform:uppercase;">OpenCV · Uniform sampling · Max 40 frames</div>
+        </div>
+      </div>
+      <div class="agent-row">
+        <div class="agent-icon">👤</div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:#dae5da;">Face Detector Agent</div>
+          <div style="font-size:12px;color:#849587;margin-top:4px;line-height:1.5;">Detects and crops faces using MediaPipe. Applies a quality gate — blurry crops (blur &lt; 40) are discarded before model inference.</div>
+          <div style="margin-top:6px;font-size:10px;font-weight:700;letter-spacing:0.1em;color:rgba(0,255,156,0.5);text-transform:uppercase;">MediaPipe · Quality gate · 20% padding</div>
+        </div>
+      </div>
+      <div class="agent-row">
+        <div class="agent-icon">🧠</div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:#dae5da;">Decision Agent (ViT Ensemble)</div>
+          <div style="font-size:12px;color:#849587;margin-top:4px;line-height:1.5;">Runs two Vision Transformer models on each face crop. Scores aggregated with mean + median blend and adaptive thresholding based on frame consistency.</div>
+          <div style="margin-top:6px;font-size:10px;font-weight:700;letter-spacing:0.1em;color:rgba(0,255,156,0.5);text-transform:uppercase;">dima806 (99.3%) · prithivMLmods (92.1%) · Adaptive threshold</div>
+        </div>
+      </div>
+      <div class="agent-row">
+        <div class="agent-icon">🎙️</div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:#dae5da;">Audio Analysis Agent</div>
+          <div style="font-size:12px;color:#849587;margin-top:4px;line-height:1.5;">Extracts audio via moviepy, runs librosa heuristics (pitch variance, MFCC delta, spectral flatness) and Wav2Vec2 ASVspoof model. Detects AI voices and audio-visual mismatch.</div>
+          <div style="margin-top:6px;font-size:10px;font-weight:700;letter-spacing:0.1em;color:rgba(0,227,253,0.5);text-transform:uppercase;">Wav2Vec2 (92.8%) · Librosa · AV mismatch detection</div>
+        </div>
+      </div>
+      <div class="agent-row">
+        <div class="agent-icon">📊</div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:#dae5da;">Report Generator Agent</div>
+          <div style="font-size:12px;color:#849587;margin-top:4px;line-height:1.5;">Combines visual + audio scores into a final verdict. AV_MISMATCH (face-swap with dubbed audio) overrides visual REAL verdict. Generates insights and frame timeline.</div>
+          <div style="margin-top:6px;font-size:10px;font-weight:700;letter-spacing:0.1em;color:rgba(0,255,156,0.5);text-transform:uppercase;">AV mismatch · Confidence calibration · Insight generation</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Logs Modal -->
+<div id="logsModal" style="display:none;" class="modal-backdrop" onclick="if(event.target===this)closeModal('logsModal')">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.15em;color:#00ff9c;text-transform:uppercase;">ANALYSIS LOGS</div>
+        <div style="font-size:12px;color:#849587;margin-top:4px;">Session history (last 20 analyses)</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('logsModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="logsContent">
+        <div style="font-size:12px;color:#849587;text-align:center;padding:32px 0;opacity:0.5;">
+          No analyses run this session.<br/>Upload a video to begin.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Network Modal -->
+<div id="networkModal" style="display:none;" class="modal-backdrop" onclick="if(event.target===this)closeModal('networkModal')">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.15em;color:#00ff9c;text-transform:uppercase;">NETWORK STATUS</div>
+        <div style="font-size:12px;color:#849587;margin-top:4px;">Model endpoints and system health</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('networkModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="networkContent">
+        <div style="font-size:12px;color:#849587;text-align:center;padding:24px 0;opacity:0.5;">Checking...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
      FOOTER
 ════════════════════════════════════════════════════════════ -->
 <footer class="relative z-10 w-full py-8 px-10 flex flex-col md:flex-row justify-between items-center opacity-80 bg-black border-t border-emerald-900/30 font-mono text-[10px] uppercase tracking-[0.2em]">
@@ -920,6 +1040,7 @@ async function analyzeVideo() {
     }
     const data = await res.json();
     stopPipelineAnimation();
+    logAnalysis(data, selectedFile?.name);
     renderResults(data);
     showState('resultsSection');
   } catch (err) {
@@ -1291,6 +1412,98 @@ function escHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = 'flex';
+  if (id === 'networkModal') refreshNetworkModal();
+  if (id === 'logsModal')    refreshLogsModal();
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+}
+// Close on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    ['agentsModal','logsModal','networkModal'].forEach(closeModal);
+  }
+});
+
+// ── Logs modal ────────────────────────────────────────────────────────────────
+const _sessionLogs = [];
+
+function logAnalysis(data, filename) {
+  _sessionLogs.unshift({
+    ts:         new Date().toLocaleTimeString(),
+    file:       filename || 'unknown',
+    result:     data.result,
+    confidence: data.confidence,
+    duration:   data.metadata?.video_duration_sec ?? '—',
+    procTime:   data.processing_time_sec ?? '—',
+  });
+  if (_sessionLogs.length > 20) _sessionLogs.pop();
+}
+
+function refreshLogsModal() {
+  const el = document.getElementById('logsContent');
+  if (!_sessionLogs.length) {
+    el.innerHTML = `<div class="font-data-mono text-data-mono text-on-surface-variant text-xs text-center py-8 opacity-50">
+      No analyses run this session.<br/>Upload a video to begin.</div>`;
+    return;
+  }
+  el.innerHTML = _sessionLogs.map(log => {
+    const isFake = log.result === 'FAKE';
+    const color  = isFake ? '#ffb4ab' : '#00ff9c';
+    return `
+      <div class="log-row">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+          <span class="material-symbols-outlined text-[14px]" style="color:${color};flex-shrink:0;">${isFake ? 'gpp_bad' : 'verified_user'}</span>
+          <span style="color:#dae5da;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;">${escHtml(log.file)}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;flex-shrink:0;">
+          <span style="color:${color};font-weight:700;">${log.result}</span>
+          <span style="color:#849587;">${log.confidence}%</span>
+          <span style="color:#849587;font-size:11px;">${log.ts}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Network modal ─────────────────────────────────────────────────────────────
+async function refreshNetworkModal() {
+  const el = document.getElementById('networkContent');
+  el.innerHTML = `<div class="font-data-mono text-data-mono text-on-surface-variant text-xs text-center py-6 opacity-50">Checking...</div>`;
+
+  let health = null;
+  try {
+    const r = await fetch(API_BASE + '/health');
+    health = await r.json();
+  } catch (_) {}
+
+  const rows = [
+    { label: 'API Server',          value: health ? 'ONLINE' : 'OFFLINE',         ok: !!health },
+    { label: 'Visual Models',       value: health?.model ?? '—',                   ok: health?.ready },
+    { label: 'dima806 ViT (99.3%)', value: health?.ready ? 'LOADED' : 'PENDING',  ok: health?.ready },
+    { label: 'prithivMLmods ViT',   value: health?.ready ? 'LOADED' : 'PENDING',  ok: health?.ready },
+    { label: 'Audio Wav2Vec2',      value: health?.ready ? 'LOADED' : 'PENDING',  ok: health?.ready },
+    { label: 'Inference Mode',      value: 'LOCAL (CPU)',                           ok: true },
+    { label: 'Endpoint',            value: API_BASE,                               ok: true },
+  ];
+
+  el.innerHTML = rows.map(r => `
+    <div class="net-row">
+      <span style="color:#849587;letter-spacing:0.08em;">${r.label}</span>
+      <span style="color:${r.ok ? '#00ff9c' : '#ffb4ab'};font-weight:700;">${escHtml(String(r.value))}</span>
+    </div>`).join('') +
+    `<div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.05);">
+      <button onclick="refreshNetworkModal()" style="background:none;border:1px solid rgba(0,255,156,0.3);color:#00ff9c;padding:6px 14px;border-radius:4px;font-family:inherit;font-size:11px;letter-spacing:0.1em;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(0,255,156,0.08)'" onmouseout="this.style.background='none'">
+        ↻ REFRESH
+      </button>
+    </div>`;
 }
 </script>
 </body>
