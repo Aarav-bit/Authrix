@@ -446,22 +446,25 @@ class ReportGeneratorAgent:
         audio_prob = 0.0
         if audio and audio.get("available"):
             audio_prob = audio.get("fake_probability", 0.0)
-            audio_fake = audio.get("result") == "AI_VOICE"
+            # AV_MISMATCH counts as fake — face-swap with dubbed audio
+            audio_fake = audio.get("result") in ("AI_VOICE", "AV_MISMATCH")
 
         # Final verdict: visual is primary, audio can upgrade OR downgrade
         if audio and audio.get("available"):
-            # Both agree → high confidence
             if visual_fake and audio_fake:
                 is_fake = True
             elif not visual_fake and not audio_fake:
                 is_fake = False
-            # Disagreement → visual wins but audio nudges the score
             elif visual_fake and not audio_fake:
                 # Audio says real — only keep FAKE if visual is strong
                 is_fake = prob >= (threshold + 0.05)
             else:
-                # Visual says real but audio says AI — flag as suspicious
-                is_fake = audio_prob >= 0.75  # only override if audio is very confident
+                # Visual says real but audio says AI/mismatch
+                # AV_MISMATCH is a very strong signal — override visual
+                if audio.get("result") == "AV_MISMATCH":
+                    is_fake = True   # face-swap confirmed by mismatch
+                else:
+                    is_fake = audio_prob >= 0.75
         else:
             is_fake = visual_fake
 
