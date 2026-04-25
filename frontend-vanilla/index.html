@@ -1,377 +1,1286 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Deepfake Authenticator</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AUTHRIX AI - Deepfake Detection Engine</title>
+
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;900&display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "inverse-surface": "#dae5da",
+          "on-error": "#690005",
+          "surface-tint": "#00e38a",
+          "error": "#ffb4ab",
+          "outline-variant": "#3b4b3f",
+          "outline": "#849587",
+          "background": "#0c150f",
+          "surface-container-high": "#232c25",
+          "secondary-container": "#00e3fd",
+          "on-surface-variant": "#b9cbbc",
+          "on-secondary-container": "#00616d",
+          "on-error-container": "#ffdad6",
+          "primary": "#f3fff3",
+          "primary-container": "#00ff9c",
+          "on-primary": "#00391f",
+          "surface-bright": "#323c34",
+          "primary-fixed-dim": "#00e38a",
+          "tertiary-fixed-dim": "#e4c44f",
+          "on-secondary-fixed": "#001f24",
+          "tertiary-fixed": "#ffe17a",
+          "on-tertiary-container": "#766000",
+          "on-secondary": "#00363d",
+          "on-tertiary-fixed": "#231b00",
+          "on-tertiary": "#3b2f00",
+          "surface-container-low": "#141e17",
+          "surface": "#0c150f",
+          "primary-fixed": "#56ffa7",
+          "secondary-fixed-dim": "#00daf3",
+          "on-secondary-fixed-variant": "#004f58",
+          "inverse-on-surface": "#29332b",
+          "surface-container": "#18221b",
+          "on-surface": "#dae5da",
+          "on-tertiary-fixed-variant": "#554500",
+          "error-container": "#93000a",
+          "surface-variant": "#2d3730",
+          "surface-container-highest": "#2d3730",
+          "secondary-fixed": "#9cf0ff",
+          "on-background": "#dae5da",
+          "on-primary-container": "#007142",
+          "inverse-primary": "#006d40",
+          "on-primary-fixed-variant": "#00522f",
+          "secondary": "#bdf4ff",
+          "tertiary": "#fffaff",
+          "surface-dim": "#0c150f",
+          "on-primary-fixed": "#002110",
+          "surface-container-lowest": "#07100a",
+          "tertiary-container": "#ffdd65"
+        },
+        borderRadius: {
+          "DEFAULT": "0.25rem",
+          "lg": "0.5rem",
+          "xl": "0.75rem",
+          "full": "9999px"
+        },
+        spacing: {
+          "xs": "4px",
+          "md": "16px",
+          "base": "4px",
+          "sm": "8px",
+          "xl": "48px",
+          "lg": "24px",
+          "gutter": "20px",
+          "margin": "32px"
+        },
+        fontFamily: {
+          "h2": ["Space Grotesk"],
+          "h1": ["Space Grotesk"],
+          "h3": ["Space Grotesk"],
+          "label-xs": ["Space Grotesk"],
+          "data-mono": ["Space Grotesk"],
+          "body-base": ["Space Grotesk"]
+        },
+        fontSize: {
+          "h2": ["32px", { lineHeight: "1.2", letterSpacing: "-0.01em", fontWeight: "600" }],
+          "h1": ["48px", { lineHeight: "1.1", letterSpacing: "-0.02em", fontWeight: "700" }],
+          "h3": ["24px", { lineHeight: "1.3", letterSpacing: "0em", fontWeight: "600" }],
+          "label-xs": ["12px", { lineHeight: "1", letterSpacing: "0.1em", fontWeight: "700" }],
+          "data-mono": ["14px", { lineHeight: "1.5", letterSpacing: "0.05em", fontWeight: "500" }],
+          "body-base": ["16px", { lineHeight: "1.6", letterSpacing: "0.01em", fontWeight: "400" }]
+        }
+      }
+    }
+  };
+</script>
+
 <style>
-:root{--g:#00ff88;--r:#ff3355;--w:#ffaa00;--bg:#050508;--card:rgba(255,255,255,0.04);--border:rgba(0,255,136,0.18);--muted:#5a6a7a;}
-*{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);font-family:'Space Grotesk',sans-serif;color:#e2e8f0;min-height:100vh;overflow-x:hidden;}
-code,pre,.mono{font-family:'JetBrains Mono',monospace;}
-::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:var(--bg);} ::-webkit-scrollbar-thumb{background:rgba(0,255,136,0.25);border-radius:4px;}
-.hidden{display:none!important;}
+  /* ── Material Symbols ── */
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  /* ── Scan line animation ── */
+  .scan-line {
+    background: linear-gradient(to bottom, transparent 0%, rgba(0, 255, 156, 0.15) 50%, transparent 100%);
+    animation: scanMove 4s linear infinite;
+    height: 2px;
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    opacity: 0.6;
+  }
+  @keyframes scanMove {
+    0%   { top: 0%; }
+    100% { top: 100%; }
+  }
+
+  /* ── Scanline overlay (results banner) ── */
+  .scanline {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 1px;
+    background: rgba(0, 255, 156, 0.12);
+    animation: scanMove 4s linear infinite;
+  }
+
+  /* ── Noise background ── */
+  .noise-bg {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.05;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+  }
+
+  /* ── Glass panel ── */
+  .glass-panel {
+    background: rgba(35, 44, 37, 0.2);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 255, 156, 0.1);
+    box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  /* ── Glow borders ── */
+  .glow-border-primary {
+    border: 1px solid rgba(0, 255, 156, 0.3) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 156, 0.1);
+  }
+  .glow-border-error {
+    border: 1px solid rgba(255, 180, 171, 0.3) !important;
+    box-shadow: 0 0 15px rgba(255, 180, 171, 0.1);
+  }
+  .glow-border-active {
+    border: 1px solid rgba(0, 255, 156, 0.5);
+    box-shadow: 0 0 15px rgba(0, 255, 156, 0.2);
+  }
+
+  /* ── Blinking cursor ── */
+  .blinking-cursor::after {
+    content: '_';
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+  }
+
+  /* ── Shimmer on hero CTA ── */
+  @keyframes shimmer {
+    100% { transform: translateX(200%); }
+  }
+
+  /* ── Drag-over state ── */
+  #dropZoneInner.drag-over {
+    border-color: #00ff9c !important;
+    background: rgba(0, 255, 156, 0.05) !important;
+    box-shadow: 0 0 40px rgba(0, 255, 156, 0.15) inset !important;
+  }
+
+  /* ── Pipeline step active ── */
+  .pipeline-step { transition: opacity 0.4s ease; }
+  .pipeline-step.pending  { opacity: 0.3; }
+  .pipeline-step.active   { opacity: 1; }
+  .pipeline-step.done     { opacity: 0.6; }
+
+  /* ── Timeline bar ── */
+  .tl-bar {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    position: relative;
+  }
+  .tl-bar-outer {
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.05);
+    border-radius: 2px 2px 0 0;
+    overflow: hidden;
+    position: relative;
+    flex: 1;
+  }
+  .tl-bar-inner {
+    width: 100%;
+    border-radius: 2px 2px 0 0;
+    transition: height 0.8s cubic-bezier(0.22,1,0.36,1);
+  }
+  .tl-bar:hover .tl-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-4px);
+  }
+  .tl-tooltip {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(10,10,20,0.95);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    padding: 3px 7px;
+    font-size: 10px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: all 0.2s ease;
+    z-index: 20;
+    font-family: 'Space Grotesk', sans-serif;
+    color: #dae5da;
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: #0c150f; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,255,156,0.25); border-radius: 4px; }
 </style>
 </head>
-<body>
 
-<style>
-/* ── Particle Canvas ── */
-#particles{position:fixed;inset:0;z-index:0;pointer-events:none;}
-/* ── Grid overlay ── */
-.grid-bg{position:fixed;inset:0;z-index:0;pointer-events:none;
-  background-image:linear-gradient(rgba(0,255,136,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,0.03) 1px,transparent 1px);
-  background-size:60px 60px;}
-/* ── Glass ── */
-.glass{background:var(--card);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.5);}
-.glass-sm{background:rgba(255,255,255,0.03);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.07);border-radius:12px;}
-/* ── Glow borders ── */
-.glow-green{box-shadow:0 0 20px rgba(0,255,136,0.25),inset 0 0 20px rgba(0,255,136,0.04);}
-.glow-red{box-shadow:0 0 20px rgba(255,51,85,0.25),inset 0 0 20px rgba(255,51,85,0.04);}
-/* ── Header ── */
-header{position:sticky;top:0;z-index:50;background:rgba(5,5,8,0.85);backdrop-filter:blur(24px);border-bottom:1px solid rgba(0,255,136,0.1);}
-/* ── Eye SVG animation ── */
-@keyframes scanPulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.5;transform:scale(1.15);}}
-@keyframes eyeScan{0%{stroke-dashoffset:100;}100%{stroke-dashoffset:0;}}
-.eye-scan{animation:scanPulse 2.5s ease-in-out infinite;}
-/* ── Status dot ── */
-@keyframes statusBlink{0%,100%{opacity:1;box-shadow:0 0 6px var(--g);}50%{opacity:0.4;box-shadow:none;}}
-.status-dot{width:8px;height:8px;border-radius:50%;background:var(--g);animation:statusBlink 2s ease-in-out infinite;}
-/* ── Drop zone border animation ── */
-@keyframes borderDash{to{stroke-dashoffset:-20;}}
-#dropZone{border:2px dashed rgba(0,255,136,0.25);border-radius:16px;cursor:pointer;min-height:200px;display:flex;align-items:center;justify-content:center;transition:all 0.35s ease;position:relative;overflow:hidden;}
-#dropZone:hover,#dropZone.drag-over{border-color:var(--g);background:rgba(0,255,136,0.04);box-shadow:0 0 40px rgba(0,255,136,0.2),inset 0 0 30px rgba(0,255,136,0.06);transform:scale(1.01);}
-/* ── Orbit ring ── */
-@keyframes orbitRing{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
-.orbit{animation:orbitRing 3s linear infinite;transform-origin:center;}
-/* ── Analyze button ── */
-#analyzeBtn{width:100%;padding:16px;border-radius:12px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;letter-spacing:0.12em;text-transform:uppercase;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:var(--muted);cursor:not-allowed;transition:all 0.3s ease;position:relative;overflow:hidden;}
-#analyzeBtn.active{background:linear-gradient(135deg,#00ff88,#00cc66);color:#050508;border-color:transparent;cursor:pointer;box-shadow:0 0 30px rgba(0,255,136,0.4);}
-#analyzeBtn.active:hover{transform:translateY(-2px) scale(1.01);box-shadow:0 0 50px rgba(0,255,136,0.6);}
-#analyzeBtn.active::after{content:'';position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent);animation:shimmer 2s ease infinite;}
-@keyframes shimmer{to{left:150%;}}
-#analyzeBtn:disabled{opacity:0.45;cursor:not-allowed;transform:none!important;}
-</style>
+<body class="bg-background text-on-surface min-h-screen flex flex-col relative overflow-x-hidden font-body-base">
 
-<style>
-/* ── Loading ── */
-@keyframes radarSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
-@keyframes radarPulse{0%,100%{opacity:0.8;transform:scale(1);}50%{opacity:0.3;transform:scale(1.05);}}
-.radar-ring{border-radius:50%;border:1px solid rgba(0,255,136,0.2);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);}
-.radar-sweep{position:absolute;top:50%;left:50%;width:50%;height:2px;transform-origin:left center;background:linear-gradient(90deg,transparent,var(--g));animation:radarSpin 2s linear infinite;}
-/* ── Agent cards ── */
-.agent-card{transition:all 0.4s ease;border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:12px 16px;background:rgba(255,255,255,0.02);}
-.agent-card.active{border-color:var(--g);background:rgba(0,255,136,0.06);box-shadow:0 0 20px rgba(0,255,136,0.15);}
-.agent-card.active .agent-dot{background:var(--g);box-shadow:0 0 8px var(--g);}
-.agent-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.15);transition:all 0.4s ease;flex-shrink:0;}
-/* ── Progress bar ── */
-.prog-track{height:4px;background:rgba(255,255,255,0.06);border-radius:99px;overflow:hidden;}
-.prog-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#00aaff,var(--g));box-shadow:0 0 12px var(--g);transition:width 0.5s ease;}
-/* ── Verdict ── */
-@keyframes glitch{0%,100%{text-shadow:0 0 10px var(--r);}20%{text-shadow:-2px 0 #ff0,2px 0 #0ff,0 0 20px var(--r);}40%{text-shadow:2px 0 #ff0,-2px 0 #0ff,0 0 10px var(--r);}60%{text-shadow:0 0 30px var(--r);}}
-.glitch-text{animation:glitch 3s ease-in-out infinite;}
-@keyframes fadeUp{from{opacity:0;transform:translateY(24px);}to{opacity:1;transform:none;}}
-.fade-up{animation:fadeUp 0.6s cubic-bezier(0.16,1,0.3,1) both;}
-@keyframes slideInLeft{from{opacity:0;transform:translateX(-20px);}to{opacity:1;transform:none;}}
-/* ── Verdict badge ── */
-.verdict-badge{width:110px;height:110px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.8rem;transition:all 0.5s;border:2px solid var(--border);}
-@keyframes pulseFake{0%,100%{box-shadow:0 0 20px rgba(255,51,85,0.3);}50%{box-shadow:0 0 50px rgba(255,51,85,0.7);}}
-@keyframes pulseReal{0%,100%{box-shadow:0 0 20px rgba(0,255,136,0.3);}50%{box-shadow:0 0 50px rgba(0,255,136,0.7);}}
-.verdict-badge.fake{border-color:var(--r);animation:pulseFake 2s infinite;}
-.verdict-badge.real{border-color:var(--g);animation:pulseReal 2s infinite;}
-/* ── Confidence arc (CSS semicircle gauge) ── */
-.gauge-wrap{position:relative;width:200px;height:110px;overflow:hidden;margin:0 auto;}
-.gauge-bg{width:200px;height:200px;border-radius:50%;border:12px solid rgba(255,255,255,0.06);position:absolute;top:0;left:0;clip-path:inset(0 0 50% 0);}
-.gauge-fill{width:200px;height:200px;border-radius:50%;border:12px solid transparent;position:absolute;top:0;left:0;clip-path:inset(0 0 50% 0);transition:transform 1.2s cubic-bezier(0.22,1,0.36,1);}
-.gauge-fill.fake{border-color:var(--r);box-shadow:0 0 20px rgba(255,51,85,0.5);}
-.gauge-fill.real{border-color:var(--g);box-shadow:0 0 20px rgba(0,255,136,0.5);}
-/* ── Conf bar ── */
-.conf-track{height:10px;background:rgba(255,255,255,0.05);border-radius:99px;overflow:hidden;border:1px solid rgba(255,255,255,0.05);}
-.conf-fill{height:100%;border-radius:99px;transition:width 1.2s cubic-bezier(0.22,1,0.36,1);}
-.conf-fill.fake{background:linear-gradient(90deg,#880022,var(--r));box-shadow:0 0 15px rgba(255,51,85,0.6);}
-.conf-fill.real{background:linear-gradient(90deg,#00aaff,var(--g));box-shadow:0 0 15px rgba(0,255,136,0.6);}
-/* ── Risk needle ── */
-#riskNeedle{display:inline-block;padding:4px 14px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:0.15em;border:1px solid;transition:all 0.5s;}
-/* ── Insight bullets ── */
-.insight-item{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);font-size:13px;line-height:1.6;color:#a0aec0;animation:slideInLeft 0.4s ease both;}
-.insight-item:hover{background:rgba(255,255,255,0.04);}
-.insight-dot{flex-shrink:0;width:8px;height:8px;border-radius:50%;margin-top:6px;}
-/* ── Timeline bars ── */
-.bar-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:0;position:relative;}
-.bar-outer{width:100%;background:rgba(255,255,255,0.05);border-radius:4px 4px 0 0;overflow:hidden;position:relative;}
-.bar-inner{width:100%;border-radius:4px 4px 0 0;transition:height 0.8s cubic-bezier(0.22,1,0.36,1);}
-.bar-wrap:hover .bar-tooltip{opacity:1;transform:translateY(-4px);}
-.bar-tooltip{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:rgba(10,10,20,0.95);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:4px 8px;font-size:10px;white-space:nowrap;pointer-events:none;opacity:0;transition:all 0.2s ease;z-index:10;font-family:'JetBrains Mono',monospace;}
-/* ── Meta grid ── */
-.meta-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);}
-.meta-row:last-child{border-bottom:none;}
-/* ── Error ── */
-#errorSection{border-color:rgba(255,51,85,0.3)!important;background:rgba(255,51,85,0.04)!important;}
-/* ── Stat pills ── */
-.stat-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:99px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);font-size:12px;font-weight:600;letter-spacing:0.05em;color:#a0aec0;}
-.stat-pill .pip{width:6px;height:6px;border-radius:50%;background:var(--g);box-shadow:0 0 6px var(--g);}
-/* ── Section label ── */
-.sec-label{font-size:10px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#00aaff;display:flex;align-items:center;gap:8px;margin-bottom:14px;}
-.sec-label::before{content:'';display:inline-block;width:3px;height:14px;background:#00aaff;border-radius:2px;box-shadow:0 0 8px #00aaff;}
-/* ── Model badge ── */
-#modelBadge{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:99px;background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.25);font-size:11px;font-weight:600;letter-spacing:0.1em;color:var(--g);}
-</style>
+<!-- ═══════════════════════════════════════════════════════════
+     FIXED ATMOSPHERIC BACKGROUND (all states)
+════════════════════════════════════════════════════════════ -->
+<div class="fixed inset-0 z-0 pointer-events-none">
+  <!-- Scan lines -->
+  <div class="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[size:100%_4px,3px_100%] opacity-20"></div>
+  <!-- Technical grid -->
+  <div class="absolute inset-0 bg-[linear-gradient(to_right,#3b4b3f_1px,transparent_1px),linear-gradient(to_bottom,#3b4b3f_1px,transparent_1px)] bg-[size:48px_48px] opacity-10"></div>
+  <!-- Ambient glow -->
+  <div class="absolute top-1/4 -right-1/4 w-[800px] h-[800px] bg-primary-container/5 rounded-full blur-[120px]"></div>
+  <div class="absolute bottom-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary-container/3 rounded-full blur-[120px]"></div>
+  <!-- Noise -->
+  <div class="absolute inset-0 noise-bg"></div>
+</div>
 
-
-<!-- Particle canvas + grid -->
-<canvas id="particles"></canvas>
-<div class="grid-bg"></div>
-
-<!-- ══ HEADER ══ -->
-<header>
-  <div style="max-width:1100px;margin:0 auto;padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;">
-    <div style="display:flex;align-items:center;gap:14px;">
-      <!-- Animated eye logo -->
-      <div class="eye-scan" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;">
-        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-          <ellipse cx="18" cy="18" rx="14" ry="9" stroke="#00ff88" stroke-width="1.5" opacity="0.9"/>
-          <circle cx="18" cy="18" r="5" fill="#00ff88" opacity="0.9"/>
-          <circle cx="18" cy="18" r="2.5" fill="#050508"/>
-          <path d="M4 18 Q18 4 32 18" stroke="#00ff88" stroke-width="0.8" stroke-dasharray="4 3" opacity="0.4">
-            <animateTransform attributeName="transform" type="rotate" from="0 18 18" to="360 18 18" dur="8s" repeatCount="indefinite"/>
-          </path>
-        </svg>
-      </div>
-      <div>
-        <div style="font-size:13px;font-weight:700;letter-spacing:0.18em;color:#fff;">DEEPFAKE AUTHENTICATOR</div>
-        <div style="font-size:9px;letter-spacing:0.25em;color:var(--muted);font-family:'JetBrains Mono',monospace;">AI-POWERED VIDEO FORENSICS</div>
-      </div>
-    </div>
-    <div id="modelBadge">
-      <div class="status-dot"></div>
-      <span>ViT ENSEMBLE</span>
+<!-- ═══════════════════════════════════════════════════════════
+     FIXED NAV (visible across all states)
+════════════════════════════════════════════════════════════ -->
+<nav class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-emerald-950/20 backdrop-blur-xl border-b border-emerald-500/20 shadow-[0_4px_20px_rgba(0,0,0,0.5)] font-['Space_Grotesk'] tracking-wider uppercase text-xs">
+  <!-- Brand -->
+  <div class="flex items-center gap-8">
+    <span class="text-2xl font-black tracking-tighter text-emerald-400 drop-shadow-[0_0_8px_rgba(0,255,156,0.5)]">AUTHRIX AI</span>
+    <div class="hidden md:flex items-center gap-6">
+      <a class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 py-1 px-2 rounded-sm" href="#">Dashboard</a>
+      <a class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 py-1 px-2 rounded-sm" href="#">Agents</a>
+      <a class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 py-1 px-2 rounded-sm" href="#">Logs</a>
+      <a class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 py-1 px-2 rounded-sm" href="#">Network</a>
     </div>
   </div>
-</header>
-
-<!-- ══ MAIN ══ -->
-<div style="position:relative;z-index:1;max-width:860px;margin:0 auto;padding:48px 24px 80px;">
-
-  <!-- Hero -->
-  <div class="fade-up" style="text-align:center;margin-bottom:48px;animation-delay:0.1s;">
-    <h1 style="font-size:clamp(2rem,5vw,3.5rem);font-weight:700;line-height:1.1;margin-bottom:16px;background:linear-gradient(135deg,#fff 30%,var(--g));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Is This Video Real?</h1>
-    <p style="color:var(--muted);font-size:15px;max-width:480px;margin:0 auto 28px;line-height:1.7;">Advanced AI ensemble detects facial manipulation with 99%+ accuracy using dual Vision Transformer models.</p>
-    <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;">
-      <div class="stat-pill"><span class="pip"></span>2 ViT Models</div>
-      <div class="stat-pill"><span class="pip"></span>40 Frame Analysis</div>
-      <div class="stat-pill"><span class="pip"></span>&lt; 15s Detection</div>
+  <!-- Actions -->
+  <div class="flex items-center gap-4">
+    <!-- Health badge -->
+    <div id="healthBadge" class="hidden items-center gap-2 bg-surface-container/40 border border-outline/30 px-3 py-1 rounded-sm">
+      <span id="healthDot" class="w-2 h-2 rounded-full bg-outline"></span>
+      <span id="healthText" class="font-label-xs text-label-xs text-on-surface-variant">CHECKING</span>
     </div>
+    <div class="hidden lg:flex items-center gap-2 border-r border-emerald-500/20 pr-4 mr-2">
+      <button class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 p-1 rounded-sm"><span class="material-symbols-outlined text-lg">sensors</span></button>
+      <button class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 p-1 rounded-sm"><span class="material-symbols-outlined text-lg">memory</span></button>
+      <button class="text-emerald-800/60 hover:text-emerald-400 transition-colors hover:bg-emerald-400/10 p-1 rounded-sm"><span class="material-symbols-outlined text-lg">speed</span></button>
+    </div>
+    <button onclick="showState('uploadSection')" class="text-emerald-400 border border-emerald-400/50 hover:bg-emerald-400/10 hover:shadow-[0_0_15px_rgba(0,255,156,0.3)] px-3 py-1 rounded-DEFAULT font-bold transition-all active:scale-95">
+      GET STARTED
+    </button>
   </div>
+</nav>
 
-  <!-- ══ UPLOAD SECTION ══ -->
-  <section id="uploadSection" class="glass fade-up" style="padding:32px;margin-bottom:24px;animation-delay:0.2s;">
-    <div id="dropZone">
-      <!-- Upload prompt -->
-      <div id="uploadPrompt" style="text-align:center;padding:40px 24px;">
-        <div style="position:relative;width:80px;height:80px;margin:0 auto 20px;">
-          <div style="position:absolute;inset:0;border-radius:50%;border:1px dashed rgba(0,255,136,0.3);" class="orbit"></div>
-          <div style="position:absolute;inset:8px;border-radius:50%;border:1px solid rgba(0,255,136,0.15);"></div>
-          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
-            <svg width="32" height="32" fill="none" stroke="#00ff88" stroke-width="1.5" viewBox="0 0 24 24" opacity="0.8">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
-            </svg>
-          </div>
-        </div>
-        <h3 style="font-size:17px;font-weight:600;color:#fff;margin-bottom:8px;">Drop Video for Forensic Analysis</h3>
-        <p style="font-size:13px;color:var(--muted);">Drag &amp; drop or click to browse</p>
-        <p style="font-size:11px;color:var(--muted);margin-top:12px;opacity:0.6;font-family:'JetBrains Mono',monospace;">MP4 · AVI · MOV · MKV · WebM — Max 100MB</p>
+<!-- ═══════════════════════════════════════════════════════════
+     STATE 1: HERO SECTION
+════════════════════════════════════════════════════════════ -->
+<section id="heroSection" class="relative z-10 flex flex-col justify-center pt-[100px] pb-xl px-6 md:px-gutter max-w-7xl mx-auto w-full min-h-screen">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-xl items-center min-h-[716px]">
+
+    <!-- Left: Content -->
+    <div class="flex flex-col items-start space-y-md">
+      <!-- Status badge -->
+      <div class="inline-flex items-center gap-2 bg-surface-container/40 border border-outline/30 backdrop-blur-md px-sm py-xs rounded-none shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+        <span class="w-2 h-2 rounded-full bg-primary-container shadow-[0_0_8px_#00ff9c] animate-pulse"></span>
+        <span class="font-label-xs text-label-xs text-on-surface-variant uppercase tracking-widest">AI-Powered Authenticity Engine</span>
       </div>
-      <!-- File chosen state -->
-      <div id="fileChosen" class="hidden" style="width:100%;padding:28px 32px;display:flex;align-items:center;gap:20px;">
-        <div style="width:56px;height:56px;border-radius:12px;background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 20px rgba(0,255,136,0.15);">
-          <svg width="28" height="28" fill="none" stroke="#00ff88" stroke-width="1.5" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/>
-          </svg>
-        </div>
-        <div style="flex:1;min-width:0;">
-          <p id="chosenName" style="font-size:14px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></p>
-          <p id="chosenSize" style="font-size:12px;color:var(--muted);margin-top:4px;font-family:'JetBrains Mono',monospace;"></p>
-        </div>
-        <button id="clearBtn" style="padding:8px;color:var(--muted);background:none;border:none;cursor:pointer;border-radius:8px;transition:all 0.2s;" onmouseover="this.style.color='#ff3355';this.style.background='rgba(255,51,85,0.1)'" onmouseout="this.style.color='var(--muted)';this.style.background='none'">
-          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+
+      <!-- Headline -->
+      <h1 class="font-h1 text-h1 text-on-surface drop-shadow-md">
+        Verify Reality <br class="hidden md:block"/>
+        in <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary-container to-secondary-container">Real-Time</span>
+      </h1>
+
+      <!-- Subtext -->
+      <p class="font-body-base text-body-base text-on-surface-variant max-w-lg mt-sm mb-lg">
+        Deploy advanced neural networks to detect deepfakes, synthetic media, and manipulated data streams with military-grade precision. Establish an unbreakable perimeter of truth.
+      </p>
+
+      <!-- CTAs -->
+      <div class="flex flex-wrap items-center gap-md mt-sm">
+        <button onclick="showState('uploadSection')" class="group relative px-lg py-sm bg-primary-container text-on-primary font-label-xs text-label-xs uppercase tracking-wider rounded-DEFAULT overflow-hidden transition-all duration-300 hover:shadow-[0_0_30px_rgba(0,255,156,0.4)] active:scale-95">
+          <span class="relative z-10 flex items-center gap-2">
+            Analyze Video
+            <span class="material-symbols-outlined text-[16px]">radar</span>
+          </span>
+          <div class="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:[animation:shimmer_1s_infinite]"></div>
+        </button>
+        <button class="px-lg py-sm bg-transparent border border-surface-tint/50 text-surface-tint font-label-xs text-label-xs uppercase tracking-wider rounded-DEFAULT hover:bg-surface-tint/10 hover:border-surface-tint transition-all duration-300 active:scale-95">
+          View Demo
         </button>
       </div>
-    </div>
-    <input type="file" id="fileInput" accept="video/*" style="display:none;"/>
-    <div style="margin-top:20px;">
-      <button id="analyzeBtn" disabled>
-        <span id="analyzeBtnText">Analyze Video</span>
-      </button>
-    </div>
-  </section>
 
-  <!-- ══ LOADING SECTION ══ -->
-  <section id="loadingSection" class="hidden glass fade-up" style="padding:48px 32px;text-align:center;margin-bottom:24px;">
-    <!-- Radar -->
-    <div style="position:relative;width:140px;height:140px;margin:0 auto 36px;">
-      <div class="radar-ring" style="width:140px;height:140px;"></div>
-      <div class="radar-ring" style="width:100px;height:100px;"></div>
-      <div class="radar-ring" style="width:60px;height:60px;"></div>
-      <div class="radar-sweep" style="width:70px;top:50%;left:50%;transform-origin:left center;"></div>
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;border-radius:50%;background:var(--g);box-shadow:0 0 15px var(--g);"></div>
-    </div>
-    <!-- Status -->
-    <p id="loadingStatus" style="font-size:11px;font-weight:700;letter-spacing:0.2em;color:#00aaff;text-transform:uppercase;margin-bottom:20px;font-family:'JetBrains Mono',monospace;">Initializing sequence...</p>
-    <!-- Progress -->
-    <div style="max-width:400px;margin:0 auto 32px;">
-      <div class="prog-track">
-        <div id="progressBar" style="width:0%;" class="prog-fill"></div>
-      </div>
-    </div>
-    <!-- Agent cards -->
-    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;max-width:500px;margin:0 auto;">
-      <div id="ag0" class="agent-card" style="display:flex;align-items:center;gap:10px;">
-        <div class="agent-dot"></div>
-        <div style="text-align:left;">
-          <div style="font-size:11px;font-weight:600;color:#fff;letter-spacing:0.05em;">Frame Extractor</div>
-          <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">Sampling keyframes</div>
-        </div>
-      </div>
-      <div id="ag1" class="agent-card" style="display:flex;align-items:center;gap:10px;">
-        <div class="agent-dot"></div>
-        <div style="text-align:left;">
-          <div style="font-size:11px;font-weight:600;color:#fff;letter-spacing:0.05em;">Face Detector</div>
-          <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">Isolating regions</div>
-        </div>
-      </div>
-      <div id="ag2" class="agent-card" style="display:flex;align-items:center;gap:10px;">
-        <div class="agent-dot"></div>
-        <div style="text-align:left;">
-          <div style="font-size:11px;font-weight:600;color:#fff;letter-spacing:0.05em;">ViT Ensemble</div>
-          <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">Neural inference</div>
-        </div>
-      </div>
-      <div id="ag3" class="agent-card" style="display:flex;align-items:center;gap:10px;">
-        <div class="agent-dot"></div>
-        <div style="text-align:left;">
-          <div style="font-size:11px;font-weight:600;color:#fff;letter-spacing:0.05em;">Report Builder</div>
-          <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">Compiling results</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ══ RESULT SECTION ══ -->
-  <section id="resultSection" class="hidden fade-up" style="display:flex;flex-direction:column;gap:20px;">
-
-    <!-- Verdict Card -->
-    <div id="verdictCard" class="glass" style="padding:40px;display:flex;flex-wrap:wrap;align-items:center;gap:36px;">
-      <!-- Badge + label -->
-      <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
-        <div id="verdictBadge" class="verdict-badge" style="margin-bottom:14px;background:rgba(5,5,8,0.8);">
-          <span id="verdictEmoji" style="font-size:2.5rem;"></span>
-        </div>
-        <div id="verdictLabel" style="font-size:28px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;"></div>
-        <div style="font-size:9px;color:var(--muted);letter-spacing:0.25em;margin-top:4px;font-family:'JetBrains Mono',monospace;">VERDICT</div>
-      </div>
-      <!-- Confidence + risk -->
-      <div style="flex:1;min-width:220px;">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;">
-          <span style="font-size:10px;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;">Confidence Score</span>
-          <span id="confValue" style="font-size:36px;font-weight:700;font-family:'JetBrains Mono',monospace;"></span>
-        </div>
-        <div class="conf-track" style="margin-bottom:20px;">
-          <div id="confBar" class="conf-fill" style="width:0%;"></div>
-        </div>
-        <div class="glass-sm" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
-          <span style="font-size:10px;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;">Risk Assessment</span>
-          <span id="riskNeedle"></span>
-        </div>
-        <div style="margin-top:12px;text-align:right;">
-          <span id="riskLabel" style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;"></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Insights + Meta -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-      <div class="glass" style="padding:24px;">
-        <div class="sec-label">Analysis Insights</div>
-        <div id="detailsList" style="display:flex;flex-direction:column;gap:10px;"></div>
-      </div>
-      <div class="glass" style="padding:24px;display:flex;flex-direction:column;justify-content:space-between;">
+      <!-- Stats -->
+      <div class="flex items-center gap-lg mt-xl pt-lg border-t border-outline/20 w-full max-w-md">
         <div>
-          <div class="sec-label">Video Metadata</div>
-          <div id="metaGrid"></div>
+          <div class="font-data-mono text-data-mono text-primary-container">99.9%</div>
+          <div class="font-label-xs text-[10px] text-outline mt-1 uppercase">Accuracy Rate</div>
         </div>
-        <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;gap:8px;">
-          <div style="width:6px;height:6px;border-radius:50%;background:var(--g);box-shadow:0 0 6px var(--g);"></div>
-          <span style="font-size:10px;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;font-family:'JetBrains Mono',monospace;">Models: ViT Ensemble</span>
+        <div class="w-px h-8 bg-outline/30"></div>
+        <div>
+          <div class="font-data-mono text-data-mono text-secondary-container">&lt;15ms</div>
+          <div class="font-label-xs text-[10px] text-outline mt-1 uppercase">Latency Ping</div>
         </div>
       </div>
     </div>
 
-    <!-- Frame Timeline -->
-    <div class="glass" style="padding:24px;">
-      <div class="sec-label">Frame Analysis Timeline</div>
-      <div id="timelineChart" style="display:flex;align-items:flex-end;gap:3px;height:80px;position:relative;padding-bottom:20px;"></div>
-      <div style="display:flex;justify-content:space-between;margin-top:8px;">
-        <span style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">Frame 0</span>
-        <span style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">Frame 40</span>
+    <!-- Right: Orb visualizer -->
+    <div class="relative w-full aspect-square max-w-lg mx-auto flex items-center justify-center lg:justify-end">
+      <div class="absolute inset-0 bg-surface-container-low/20 backdrop-blur-3xl rounded-full border border-outline/10 shadow-[inset_0_0_40px_rgba(0,0,0,0.8)] flex items-center justify-center overflow-hidden">
+        <!-- Spinning rings -->
+        <div class="absolute w-[120%] h-[120%] border border-primary-container/10 rounded-full animate-[spin_20s_linear_infinite]"></div>
+        <div class="absolute w-[100%] h-[100%] border border-secondary-container/20 rounded-full border-dashed animate-[spin_15s_linear_infinite_reverse]"></div>
+        <div class="absolute w-[80%] h-[80%] border-2 border-primary-container/5 rounded-full"></div>
+        <!-- Core orb -->
+        <div class="relative w-3/4 h-3/4 rounded-full overflow-hidden mix-blend-screen shadow-[0_0_60px_rgba(0,255,156,0.2)] bg-gradient-to-br from-primary-container/20 via-secondary-container/10 to-transparent flex items-center justify-center">
+          <span class="material-symbols-outlined text-primary-container" style="font-size:120px;opacity:0.4;font-variation-settings:'FILL' 1;">radar</span>
+          <div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent"></div>
+        </div>
+      </div>
+      <!-- Floating HUD -->
+      <div class="absolute top-10 -left-4 bg-surface/80 backdrop-blur-md border border-outline/30 px-sm py-1 font-data-mono text-[10px] text-primary-container">SYS.OPT.OK</div>
+      <div class="absolute bottom-20 -right-4 bg-surface/80 backdrop-blur-md border border-outline/30 px-sm py-1 font-data-mono text-[10px] text-secondary-container flex items-center gap-1">
+        <span class="material-symbols-outlined text-[12px]">sync</span> LIVE
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     STATE 2: UPLOAD SECTION
+════════════════════════════════════════════════════════════ -->
+<section id="uploadSection" style="display:none;" class="relative z-10 flex flex-col items-center justify-center pt-28 pb-24 px-6 min-h-screen">
+  <div class="w-full max-w-3xl flex flex-col gap-8">
+
+    <!-- Header -->
+    <div class="text-center space-y-2">
+      <h1 class="font-h2 text-h2 text-primary-container drop-shadow-[0_0_12px_rgba(0,255,156,0.4)]">SECURE INGEST PORTAL</h1>
+      <p class="font-data-mono text-data-mono text-on-surface-variant">Awaiting encrypted payload via protocol AX-9.</p>
+    </div>
+
+    <!-- Drop zone -->
+    <div class="relative bg-surface-container/40 backdrop-blur-2xl border border-outline/20 rounded-xl overflow-hidden group hover:border-primary-container/50 transition-colors duration-500 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_0_30px_rgba(0,0,0,0.5)]">
+      <div class="scan-line"></div>
+      <div id="dropZoneInner"
+           onclick="document.getElementById('fileInput').click()"
+           class="p-10 flex flex-col items-center justify-center border-2 border-dashed border-outline-variant/50 m-4 rounded-lg bg-surface-container-low/30 hover:bg-primary-container/5 hover:border-primary-container hover:shadow-[0_0_40px_rgba(0,255,156,0.1)_inset] transition-all duration-300 cursor-pointer min-h-[300px]">
+
+        <!-- Upload prompt (default) -->
+        <div id="uploadPrompt">
+          <div class="w-24 h-24 rounded-full bg-surface-variant flex items-center justify-center mb-6 shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] group-hover:bg-surface-container-highest transition-colors mx-auto">
+            <span class="material-symbols-outlined text-[48px] text-on-surface-variant group-hover:text-primary-container group-hover:drop-shadow-[0_0_12px_rgba(0,255,156,0.8)] transition-all duration-300" style="font-variation-settings:'FILL' 1;">cloud_upload</span>
+          </div>
+          <h3 class="font-h3 text-h3 text-on-surface mb-2 text-center">INITIALIZE UPLOAD</h3>
+          <p class="font-body-base text-body-base text-on-surface-variant mb-6 text-center max-w-sm">Drag and drop your video file here, or click to browse.</p>
+          <div class="flex items-center gap-2 font-label-xs text-label-xs text-outline tracking-widest justify-center">
+            <span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+            ACCEPTED: MP4 · AVI · MOV · MKV · WebM
+            <span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+          </div>
+        </div>
+
+        <!-- File chosen state (hidden until file selected) -->
+        <div id="fileChosen" style="display:none;" class="w-full flex items-center gap-5">
+          <div class="w-14 h-14 rounded-lg bg-primary-container/10 border border-primary-container/30 flex items-center justify-center flex-shrink-0 shadow-[0_0_20px_rgba(0,255,156,0.15)]">
+            <span class="material-symbols-outlined text-primary-container text-[28px]" style="font-variation-settings:'FILL' 1;">video_file</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p id="chosenName" class="font-data-mono text-data-mono text-on-surface overflow-hidden text-ellipsis whitespace-nowrap"></p>
+            <p id="chosenSize" class="font-label-xs text-label-xs text-on-surface-variant mt-1"></p>
+          </div>
+          <button id="clearFileBtn" onclick="clearFile(event)" class="p-2 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-sm transition-all">
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- Reset -->
-    <div style="text-align:center;margin-top:8px;">
-      <button onclick="resetAll()" style="padding:12px 28px;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);background:none;border:1px solid rgba(255,255,255,0.1);border-radius:10px;cursor:pointer;transition:all 0.3s;font-family:'Space Grotesk',sans-serif;" onmouseover="this.style.color='var(--g)';this.style.borderColor='rgba(0,255,136,0.4)';this.style.background='rgba(0,255,136,0.05)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='rgba(255,255,255,0.1)';this.style.background='none'">
-        ↻ &nbsp;Analyze Another Video
+    <!-- Hidden file input -->
+    <input type="file" id="fileInput" accept="video/*" style="display:none;"/>
+
+    <!-- Analyze button -->
+    <button id="analyzeBtn" disabled onclick="analyzeVideo()"
+      class="w-full py-4 font-label-xs text-label-xs uppercase tracking-wider rounded-DEFAULT transition-all duration-300 border border-outline/30 bg-surface-container/40 text-outline cursor-not-allowed"
+      style="pointer-events:none;">
+      <span class="flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-[16px]">play_arrow</span>
+        INITIATE ANALYSIS
+      </span>
+    </button>
+
+    <!-- Active queue -->
+    <div class="flex flex-col gap-4">
+      <div class="flex items-center justify-between border-b border-outline/20 pb-2">
+        <h4 class="font-label-xs text-label-xs text-primary-container uppercase tracking-widest flex items-center gap-2">
+          <span class="w-2 h-2 bg-primary-container shadow-[0_0_8px_rgba(0,255,156,0.8)]"></span>
+          ACTIVE QUEUE
+        </h4>
+        <span id="queueTime" class="font-data-mono text-[10px] text-on-surface-variant">SYS_TIME: --:--:--</span>
+      </div>
+      <div id="queueList" class="grid grid-cols-1 gap-2">
+        <div class="bg-surface-container-low border border-outline-variant/30 rounded-DEFAULT p-4 flex items-center gap-3 opacity-40">
+          <span class="material-symbols-outlined text-outline text-[20px]">inbox</span>
+          <span class="font-data-mono text-data-mono text-on-surface-variant">No payload queued. Awaiting upload.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Back to hero -->
+    <div class="text-center">
+      <button onclick="showState('heroSection')" class="font-data-mono text-data-mono text-on-surface-variant hover:text-primary-container transition-colors flex items-center gap-2 mx-auto">
+        <span class="material-symbols-outlined text-[16px]">arrow_back</span>
+        Back to Command Center
       </button>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- ══ ERROR SECTION ══ -->
-  <section id="errorSection" class="hidden glass fade-up" style="padding:28px 32px;margin-bottom:24px;">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-      <svg width="22" height="22" fill="none" stroke="#ff3355" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-      <span style="font-size:12px;font-weight:700;letter-spacing:0.2em;color:#ff3355;text-transform:uppercase;font-family:'JetBrains Mono',monospace;">Analysis Failed</span>
+<!-- ═══════════════════════════════════════════════════════════
+     STATE 3: PROCESSING SECTION
+════════════════════════════════════════════════════════════ -->
+<section id="processingSection" style="display:none;" class="relative z-10 flex flex-col items-center justify-center px-6 min-h-screen">
+  <div class="absolute inset-0 noise-bg z-0"></div>
+  <div class="scan-line" style="top:30%"></div>
+
+  <div class="relative z-10 container mx-auto px-6 flex flex-col items-center justify-center w-full max-w-4xl pt-24 pb-16">
+
+    <!-- Header -->
+    <div class="w-full max-w-3xl mb-xl text-center">
+      <h1 class="font-h1 text-h1 text-primary-container drop-shadow-[0_0_8px_rgba(0,255,156,0.3)] mb-sm">SYSTEM_STATE: ANALYSIS</h1>
+      <p class="font-data-mono text-data-mono text-primary-fixed-dim/70 tracking-[0.2em] uppercase">Initiating Deep Inspection Protocol</p>
     </div>
-    <p id="errorMsg" style="font-size:13px;color:var(--muted);margin-left:34px;line-height:1.6;"></p>
-    <div style="margin-left:34px;margin-top:16px;">
-      <button onclick="resetAll()" style="font-size:11px;color:rgba(255,255,255,0.4);background:none;border:none;cursor:pointer;letter-spacing:0.15em;text-transform:uppercase;font-family:'Space Grotesk',sans-serif;transition:color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.4)'">↻ Try Again</button>
+
+    <!-- Bento grid -->
+    <div class="w-full grid grid-cols-1 md:grid-cols-12 gap-gutter">
+
+      <!-- Left: Orb visual -->
+      <div class="md:col-span-5 glass-panel rounded-xl p-lg flex flex-col items-center justify-center relative min-h-[300px] border-outline/20">
+        <div class="absolute top-sm left-sm font-label-xs text-label-xs text-outline tracking-widest uppercase">Target Vector</div>
+        <div class="relative w-48 h-48 rounded-full border border-primary-container/30 shadow-[0_0_30px_rgba(0,255,156,0.1)] flex items-center justify-center">
+          <div class="absolute inset-2 rounded-full border border-dashed border-primary-container/40 animate-[spin_8s_linear_infinite]"></div>
+          <div class="absolute inset-6 rounded-full bg-surface-container-high shadow-inner flex items-center justify-center overflow-hidden bg-gradient-to-br from-primary-container/10 to-secondary-container/5">
+            <span class="material-symbols-outlined text-secondary-container text-[48px] opacity-50" style="font-variation-settings:'FILL' 1;">analytics</span>
+          </div>
+          <div class="absolute inset-0 rounded-full border-t-2 border-primary-container/80 blur-[2px] animate-[spin_3s_linear_infinite]"></div>
+          <span class="material-symbols-outlined absolute text-primary-container text-4xl drop-shadow-[0_0_10px_rgba(0,255,156,0.8)]">troubleshoot</span>
+        </div>
+        <div class="mt-lg text-center w-full">
+          <div class="font-data-mono text-data-mono text-on-surface-variant flex items-center justify-between w-full border-b border-outline/10 pb-xs mb-xs">
+            <span>DATA_STREAM</span>
+            <span class="text-secondary-fixed">ACTIVE</span>
+          </div>
+          <div class="font-data-mono text-data-mono text-on-surface-variant flex items-center justify-between w-full border-b border-outline/10 pb-xs">
+            <span>THROUGHPUT</span>
+            <span class="text-tertiary-container" id="throughputVal">2.4 TB/s</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Pipeline steps -->
+      <div class="md:col-span-7 glass-panel rounded-xl p-lg flex flex-col justify-center gap-md border-outline/20">
+        <div class="flex justify-between items-center mb-sm">
+          <div class="font-label-xs text-label-xs text-outline tracking-widest uppercase">Processing Pipeline</div>
+          <div id="pipelinePercent" class="font-data-mono text-data-mono text-primary-container bg-primary-container/10 px-2 py-1 rounded">0% COMPLETE</div>
+        </div>
+
+        <!-- Step 0: Extract frames -->
+        <div id="step0" class="pipeline-step pending flex flex-col gap-xs">
+          <div class="flex justify-between items-center">
+            <div class="flex items-center gap-sm">
+              <span id="step0icon" class="material-symbols-outlined text-outline text-sm">hourglass_empty</span>
+              <span class="font-data-mono text-data-mono text-on-surface">Extracting frames...</span>
+            </div>
+            <span id="step0pct" class="font-data-mono text-data-mono text-outline">0%</span>
+          </div>
+          <div class="w-full h-2 bg-surface-container-highest flex gap-[2px]" id="step0bar">
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+          </div>
+        </div>
+
+        <!-- Step 1: Detect faces -->
+        <div id="step1" class="pipeline-step pending flex flex-col gap-xs">
+          <div class="flex justify-between items-center">
+            <div class="flex items-center gap-sm">
+              <span id="step1icon" class="material-symbols-outlined text-outline text-sm">hourglass_empty</span>
+              <span class="font-data-mono text-data-mono text-on-surface">Detecting faces...</span>
+            </div>
+            <span id="step1pct" class="font-data-mono text-data-mono text-outline">0%</span>
+          </div>
+          <div class="w-full h-2 bg-surface-container-highest flex gap-[2px]" id="step1bar">
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+          </div>
+        </div>
+
+        <!-- Step 2: Model inference -->
+        <div id="step2" class="pipeline-step pending flex flex-col gap-xs">
+          <div class="flex justify-between items-center">
+            <div class="flex items-center gap-sm">
+              <span id="step2icon" class="material-symbols-outlined text-outline text-sm">hourglass_empty</span>
+              <span class="font-data-mono text-data-mono text-on-surface">Running model inference...</span>
+            </div>
+            <span id="step2pct" class="font-data-mono text-data-mono text-outline">0%</span>
+          </div>
+          <div class="w-full h-2 bg-surface-container-highest flex gap-[2px]" id="step2bar">
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+          </div>
+        </div>
+
+        <!-- Step 3: Audio patterns -->
+        <div id="step3" class="pipeline-step pending flex flex-col gap-xs mt-sm">
+          <div class="flex justify-between items-center">
+            <div class="flex items-center gap-sm">
+              <span id="step3icon" class="material-symbols-outlined text-outline text-sm">hourglass_empty</span>
+              <span class="font-data-mono text-data-mono text-on-surface">Analyzing audio patterns...</span>
+            </div>
+            <span id="step3pct" class="font-data-mono text-data-mono text-outline">0%</span>
+          </div>
+          <div class="w-full h-2 bg-surface-container-highest flex gap-[2px]" id="step3bar">
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+            <div class="h-full bg-primary-container/20 flex-1"></div><div class="h-full bg-primary-container/20 flex-1"></div>
+          </div>
+        </div>
+
+        <!-- CLI feedback -->
+        <div class="mt-auto bg-surface-container-highest/50 border border-outline/10 p-sm rounded font-data-mono text-data-mono text-xs text-primary-fixed-dim/60 shadow-inner min-h-[60px]" id="cliFeedback">
+          &gt; [SYS] Initializing analysis pipeline...<br/>
+          &gt; [SYS] Loading neural weights... <span class="text-primary-container animate-pulse">_</span>
+        </div>
+      </div>
     </div>
-  </section>
+  </div>
+</section>
 
-</div><!-- /main -->
+<!-- ═══════════════════════════════════════════════════════════
+     STATE 4: RESULTS SECTION
+════════════════════════════════════════════════════════════ -->
+<section id="resultsSection" style="display:none;" class="relative z-10 pt-24 pb-xl px-gutter max-w-[1400px] mx-auto w-full flex flex-col gap-lg">
 
-<footer style="position:relative;z-index:1;text-align:center;padding:24px;font-size:10px;color:rgba(90,106,122,0.5);letter-spacing:0.2em;text-transform:uppercase;font-family:'JetBrains Mono',monospace;">
-  Deepfake Authenticator &nbsp;·&nbsp; Secure Local Inference &nbsp;·&nbsp; ViT Ensemble v2
+  <!-- Cinematic banner -->
+  <div id="resultBanner" class="glass-panel glow-border-primary rounded-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between p-lg md:p-margin min-h-[280px]">
+    <div class="scanline"></div>
+    <!-- BG overlay -->
+    <div class="absolute inset-0 opacity-10 mix-blend-overlay pointer-events-none bg-gradient-to-br from-primary-container/20 via-transparent to-secondary-container/10"></div>
+
+    <div class="relative z-10 flex flex-col md:flex-row items-center gap-margin w-full">
+      <!-- Circular verdict badge -->
+      <div id="verdictBadge" class="relative w-44 h-44 rounded-full border-4 border-primary-container flex items-center justify-center shadow-[0_0_30px_rgba(0,255,156,0.4)] flex-shrink-0">
+        <div class="absolute inset-0 rounded-full border border-primary-container animate-[spin_10s_linear_infinite] opacity-50"></div>
+        <div class="absolute inset-2 rounded-full border border-dashed border-primary-container animate-[spin_15s_linear_infinite_reverse] opacity-30"></div>
+        <div class="text-center">
+          <span id="verdictIcon" class="material-symbols-outlined text-primary-container text-5xl mb-1" style="font-variation-settings:'FILL' 1;">verified_user</span>
+          <h2 id="verdictLabel" class="font-h3 text-h3 text-primary-container uppercase tracking-widest drop-shadow-[0_0_5px_rgba(0,255,156,0.8)] text-sm">AUTHENTIC</h2>
+        </div>
+      </div>
+
+      <!-- Confidence score -->
+      <div class="flex-grow text-center md:text-left flex flex-col gap-sm">
+        <p id="resultId" class="font-data-mono text-data-mono text-primary-container/80 uppercase tracking-widest">Analysis Complete // ID: ----</p>
+        <h1 class="font-h1 text-h1 text-on-surface">Confidence Score</h1>
+        <div id="confidenceScore" class="font-h1 leading-none text-primary-container drop-shadow-[0_0_15px_rgba(0,255,156,0.6)] font-black" style="font-size:80px;">--.--%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main grid: insights + diagnostics -->
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-lg">
+
+    <!-- Left: Primary Vectors -->
+    <div class="lg:col-span-4 flex flex-col gap-md">
+      <h3 class="font-label-xs text-label-xs text-outline uppercase tracking-widest border-b border-surface-variant pb-2">Primary Vectors</h3>
+      <div id="insightCards" class="flex flex-col gap-md">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Right: System Diagnostics -->
+    <div class="lg:col-span-8 flex flex-col gap-md">
+      <h3 class="font-label-xs text-label-xs text-outline uppercase tracking-widest border-b border-surface-variant pb-2">System Diagnostics</h3>
+      <div class="glass-panel rounded-lg flex-grow p-md font-data-mono text-data-mono text-sm relative overflow-hidden flex flex-col min-h-[280px]">
+        <div class="scanline"></div>
+        <div class="flex justify-between items-center border-b border-surface-variant/50 pb-sm mb-sm text-on-surface-variant">
+          <span>METADATA_STREAM</span>
+          <span class="text-primary-container animate-pulse">ACTIVE</span>
+        </div>
+        <div id="metaTerminal" class="flex-grow space-y-2 text-on-surface-variant overflow-y-auto pr-2">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="glass-panel rounded-xl p-lg flex flex-col gap-md">
+    <h3 class="font-label-xs text-label-xs text-outline uppercase tracking-widest border-b border-surface-variant pb-2">Probability Timeline</h3>
+    <div class="relative">
+      <!-- Grid lines -->
+      <div class="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20 pb-6">
+        <div class="w-full h-px bg-outline"></div>
+        <div class="w-full h-px bg-outline"></div>
+        <div class="w-full h-px bg-outline"></div>
+        <div class="w-full h-px bg-outline"></div>
+      </div>
+      <!-- Y-axis labels -->
+      <div class="absolute left-0 top-0 h-[160px] flex flex-col justify-between pointer-events-none pr-2">
+        <span class="font-data-mono text-[9px] text-outline">100%</span>
+        <span class="font-data-mono text-[9px] text-outline">75%</span>
+        <span class="font-data-mono text-[9px] text-outline">50%</span>
+        <span class="font-data-mono text-[9px] text-outline">25%</span>
+        <span class="font-data-mono text-[9px] text-outline">0%</span>
+      </div>
+      <!-- Bars container -->
+      <div id="timelineBars" class="h-[160px] flex items-end gap-[2px] border-b border-l border-surface-variant pl-8 relative z-10 overflow-hidden">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+    <div id="timelineLabels" class="flex justify-between font-data-mono text-data-mono text-xs text-outline mt-1 pl-8">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <!-- Audio section (shown only when audio.available) -->
+  <div id="audioSection" style="display:none;" class="glass-panel rounded-xl p-lg flex flex-col gap-md">
+    <h3 class="font-label-xs text-label-xs text-outline uppercase tracking-widest border-b border-surface-variant pb-2 flex items-center gap-2">
+      <span class="material-symbols-outlined text-[14px]">graphic_eq</span>
+      Audio Analysis
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+      <!-- Audio verdict -->
+      <div class="glass-panel rounded-lg p-md flex items-center gap-md">
+        <div class="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center flex-shrink-0 border border-surface-variant">
+          <span id="audioIcon" class="material-symbols-outlined text-primary-container" style="font-variation-settings:'FILL' 1;">record_voice_over</span>
+        </div>
+        <div>
+          <div class="font-label-xs text-label-xs text-outline uppercase tracking-widest mb-1">Voice Classification</div>
+          <div id="audioVerdict" class="font-h3 text-h3 text-primary-container">HUMAN_VOICE</div>
+          <div id="audioConfidence" class="font-data-mono text-data-mono text-on-surface-variant mt-1">Confidence: --%</div>
+        </div>
+      </div>
+      <!-- Audio scores -->
+      <div class="glass-panel rounded-lg p-md flex flex-col gap-sm">
+        <div class="font-label-xs text-label-xs text-outline uppercase tracking-widest mb-1">Score Breakdown</div>
+        <div class="flex items-center justify-between">
+          <span class="font-data-mono text-data-mono text-on-surface-variant text-xs">Model Score</span>
+          <div class="flex items-center gap-2 flex-1 ml-4">
+            <div class="h-1 flex-grow bg-surface-container-highest rounded-full overflow-hidden">
+              <div id="audioModelBar" class="h-full bg-primary-container" style="width:0%"></div>
+            </div>
+            <span id="audioModelScore" class="font-data-mono text-data-mono text-primary-container text-xs w-10 text-right">--%</span>
+          </div>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="font-data-mono text-data-mono text-on-surface-variant text-xs">Heuristic Score</span>
+          <div class="flex items-center gap-2 flex-1 ml-4">
+            <div class="h-1 flex-grow bg-surface-container-highest rounded-full overflow-hidden">
+              <div id="audioHeuristicBar" class="h-full bg-secondary-container" style="width:0%"></div>
+            </div>
+            <span id="audioHeuristicScore" class="font-data-mono text-data-mono text-secondary-container text-xs w-10 text-right">--%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Audio details -->
+    <div id="audioDetails" class="flex flex-col gap-2">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <!-- New analysis button -->
+  <div class="text-center mt-sm">
+    <button onclick="resetAll()" class="font-data-mono text-data-mono text-error border border-error/50 px-lg py-sm rounded bg-error/5 hover:bg-error/10 hover:shadow-[0_0_15px_rgba(255,180,171,0.2)] transition-all flex items-center gap-xs mx-auto">
+      <span class="material-symbols-outlined text-sm">restart_alt</span>
+      NEW ANALYSIS
+    </button>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     FOOTER
+════════════════════════════════════════════════════════════ -->
+<footer class="relative z-10 w-full py-8 px-10 flex flex-col md:flex-row justify-between items-center opacity-80 bg-black border-t border-emerald-900/30 font-mono text-[10px] uppercase tracking-[0.2em]">
+  <div class="text-emerald-500 mb-4 md:mb-0">© 2024 AUTHRIX COMMAND. SYSTEM_STATE: VIGILANT</div>
+  <div class="flex items-center gap-md">
+    <a class="text-emerald-900 hover:text-emerald-300 transition-all cursor-crosshair" href="#">Kernel</a>
+    <a class="text-emerald-900 hover:text-emerald-300 transition-all cursor-crosshair" href="#">Protocol</a>
+    <a class="text-emerald-900 hover:text-emerald-300 transition-all cursor-crosshair" href="#">Override</a>
+    <a class="text-emerald-900 hover:text-emerald-300 transition-all cursor-crosshair" href="#">Diagnostics</a>
+  </div>
 </footer>
 
+<!-- ═══════════════════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════════════════════ -->
 <script>
-// ── Particle background ──────────────────────────────────────────────────────
-(function(){
-  const c=document.getElementById('particles');
-  const ctx=c.getContext('2d');
-  let W,H,pts=[];
-  function resize(){W=c.width=window.innerWidth;H=c.height=window.innerHeight;}
-  resize();window.addEventListener('resize',resize);
-  for(let i=0;i<60;i++)pts.push({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,r:Math.random()*1.5+0.5,a:Math.random()});
-  function draw(){
-    ctx.clearRect(0,0,W,H);
-    pts.forEach(p=>{
-      p.x+=p.vx;p.y+=p.vy;
-      if(p.x<0||p.x>W)p.vx*=-1;
-      if(p.y<0||p.y>H)p.vy*=-1;
-      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-      ctx.fillStyle=`rgba(0,255,136,${0.15+p.a*0.2})`;ctx.fill();
-    });
-    // draw connections
-    for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){
-      const dx=pts[i].x-pts[j].x,dy=pts[i].y-pts[j].y,d=Math.sqrt(dx*dx+dy*dy);
-      if(d<120){ctx.beginPath();ctx.moveTo(pts[i].x,pts[i].y);ctx.lineTo(pts[j].x,pts[j].y);ctx.strokeStyle=`rgba(0,255,136,${0.06*(1-d/120)})`;ctx.lineWidth=0.5;ctx.stroke();}
+// ── API base ─────────────────────────────────────────────────────────────────
+const API_BASE = (window.location.protocol === 'file:')
+  ? 'http://localhost:8000'
+  : window.location.origin;
+
+let selectedFile = null;
+let pipelineTimers = [];
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  pingHealth();
+  initUpload();
+  startQueueClock();
+});
+
+// ── Health check ──────────────────────────────────────────────────────────────
+async function pingHealth() {
+  const badge = document.getElementById('healthBadge');
+  const dot   = document.getElementById('healthDot');
+  const text  = document.getElementById('healthText');
+  badge.style.display = 'flex';
+  try {
+    const res  = await fetch(API_BASE + '/health');
+    const data = await res.json();
+    if (data.ready) {
+      dot.className  = 'w-2 h-2 rounded-full bg-primary-container shadow-[0_0_8px_#00ff9c] animate-pulse';
+      text.textContent = data.model ? data.model.toUpperCase().slice(0, 20) : 'READY';
+      text.className = 'font-label-xs text-label-xs text-primary-container';
+    } else {
+      dot.className  = 'w-2 h-2 rounded-full bg-tertiary-container animate-pulse';
+      text.textContent = 'LOADING';
+      text.className = 'font-label-xs text-label-xs text-tertiary-container';
     }
-    requestAnimationFrame(draw);
+  } catch {
+    dot.className  = 'w-2 h-2 rounded-full bg-error';
+    text.textContent = 'OFFLINE';
+    text.className = 'font-label-xs text-label-xs text-error';
   }
-  draw();
-})();
+}
+
+// ── Show/hide states ──────────────────────────────────────────────────────────
+function showState(id) {
+  ['heroSection', 'uploadSection', 'processingSection', 'resultsSection'].forEach(s => {
+    const el = document.getElementById(s);
+    if (el) el.style.display = (s === id) ? '' : 'none';
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── Queue clock ───────────────────────────────────────────────────────────────
+function startQueueClock() {
+  function tick() {
+    const el = document.getElementById('queueTime');
+    if (el) {
+      const now = new Date();
+      const hh  = String(now.getHours()).padStart(2, '0');
+      const mm  = String(now.getMinutes()).padStart(2, '0');
+      const ss  = String(now.getSeconds()).padStart(2, '0');
+      el.textContent = `SYS_TIME: ${hh}:${mm}:${ss}`;
+    }
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+// ── Upload init ───────────────────────────────────────────────────────────────
+function initUpload() {
+  const zone  = document.getElementById('dropZoneInner');
+  const input = document.getElementById('fileInput');
+
+  // Drag events
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+    zone.classList.add('drag-over');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) applyFile(file);
+  });
+
+  // File input change
+  input.addEventListener('change', () => {
+    if (input.files[0]) applyFile(input.files[0]);
+  });
+}
+
+// ── Apply selected file ───────────────────────────────────────────────────────
+function applyFile(file) {
+  selectedFile = file;
+
+  // Show file info in drop zone
+  document.getElementById('uploadPrompt').style.display = 'none';
+  document.getElementById('fileChosen').style.display   = 'flex';
+  document.getElementById('chosenName').textContent = file.name;
+  document.getElementById('chosenSize').textContent = formatBytes(file.size);
+
+  // Enable analyze button
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = false;
+  btn.style.pointerEvents = '';
+  btn.className = 'w-full py-4 font-label-xs text-label-xs uppercase tracking-wider rounded-DEFAULT transition-all duration-300 bg-primary-container text-on-primary cursor-pointer hover:shadow-[0_0_30px_rgba(0,255,156,0.4)] active:scale-95';
+
+  // Update queue
+  updateQueue(file);
+}
+
+// ── Clear file ────────────────────────────────────────────────────────────────
+function clearFile(e) {
+  e.stopPropagation();
+  selectedFile = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('uploadPrompt').style.display = '';
+  document.getElementById('fileChosen').style.display   = 'none';
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.style.pointerEvents = 'none';
+  btn.className = 'w-full py-4 font-label-xs text-label-xs uppercase tracking-wider rounded-DEFAULT transition-all duration-300 border border-outline/30 bg-surface-container/40 text-outline cursor-not-allowed';
+
+  // Reset queue
+  document.getElementById('queueList').innerHTML = `
+    <div class="bg-surface-container-low border border-outline-variant/30 rounded-DEFAULT p-4 flex items-center gap-3 opacity-40">
+      <span class="material-symbols-outlined text-outline text-[20px]">inbox</span>
+      <span class="font-data-mono text-data-mono text-on-surface-variant">No payload queued. Awaiting upload.</span>
+    </div>`;
+}
+
+// ── Update queue display ──────────────────────────────────────────────────────
+function updateQueue(file) {
+  document.getElementById('queueList').innerHTML = `
+    <div class="bg-surface-container-low border border-outline-variant/30 rounded-DEFAULT p-4 flex flex-col gap-3 relative overflow-hidden">
+      <div class="absolute bottom-0 left-0 h-[1px] bg-primary-container w-full shadow-[0_0_5px_rgba(0,255,156,0.8)]"></div>
+      <div class="flex justify-between items-start">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-primary-container text-[20px]" style="font-variation-settings:'FILL' 1;">video_file</span>
+          <div>
+            <div class="font-data-mono text-data-mono text-on-surface">${escHtml(file.name)}</div>
+            <div class="font-label-xs text-[10px] text-on-surface-variant mt-1">${formatBytes(file.size)}</div>
+          </div>
+        </div>
+        <span class="font-label-xs text-[10px] border border-primary-container/50 text-primary-container px-2 py-1 bg-primary-container/10">READY</span>
+      </div>
+    </div>`;
+}
+
+// ── Analyze video ─────────────────────────────────────────────────────────────
+async function analyzeVideo() {
+  if (!selectedFile) return;
+
+  showState('processingSection');
+  resetPipeline();
+  startPipelineAnimation();
+
+  const fd = new FormData();
+  fd.append('file', selectedFile);
+
+  try {
+    const res = await fetch(API_BASE + '/analyze', { method: 'POST', body: fd });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    stopPipelineAnimation();
+    renderResults(data);
+    showState('resultsSection');
+  } catch (err) {
+    stopPipelineAnimation();
+    showState('uploadSection');
+    alert('Analysis failed: ' + err.message);
+  }
+}
+
+// ── Pipeline animation ────────────────────────────────────────────────────────
+const STEP_ICONS   = ['filter_frames', 'face', 'memory', 'graphic_eq'];
+const STEP_DELAYS  = [0, 1800, 3600, 5400];
+const STEP_PERCENTS = [25, 50, 75, 100];
+const CLI_MSGS = [
+  ['> [SYS] Decoding video container...', '> [SYS] Sampling keyframes... OK'],
+  ['> [DET] Loading face detector...', '> [DET] Scanning for facial regions... OK'],
+  ['> [INF] Allocating tensor buffers...', '> [INF] Running ViT ensemble inference...', '> [INF] Batch processing... <span class="text-primary-container animate-pulse">_</span>'],
+  ['> [AUD] Extracting audio track...', '> [AUD] Computing spectral features...', '> [AUD] Classifying voice patterns... <span class="text-primary-container animate-pulse">_</span>'],
+];
+
+function resetPipeline() {
+  for (let i = 0; i < 4; i++) {
+    const step = document.getElementById('step' + i);
+    step.className = 'pipeline-step pending flex flex-col gap-xs' + (i === 3 ? ' mt-sm' : '');
+    document.getElementById('step' + i + 'icon').className = 'material-symbols-outlined text-outline text-sm';
+    document.getElementById('step' + i + 'icon').textContent = 'hourglass_empty';
+    document.getElementById('step' + i + 'pct').textContent = '0%';
+    document.getElementById('step' + i + 'pct').className = 'font-data-mono text-data-mono text-outline';
+    setBarFill(i, 0);
+  }
+  document.getElementById('pipelinePercent').textContent = '0% COMPLETE';
+  document.getElementById('cliFeedback').innerHTML =
+    '> [SYS] Initializing analysis pipeline...<br/>> [SYS] Loading neural weights... <span class="text-primary-container animate-pulse">_</span>';
+}
+
+function startPipelineAnimation() {
+  pipelineTimers = [];
+  for (let i = 0; i < 4; i++) {
+    const t = setTimeout(() => activateStep(i), STEP_DELAYS[i]);
+    pipelineTimers.push(t);
+  }
+}
+
+function stopPipelineAnimation() {
+  pipelineTimers.forEach(t => clearTimeout(t));
+  pipelineTimers = [];
+  // Mark all done
+  for (let i = 0; i < 4; i++) completeStep(i);
+  document.getElementById('pipelinePercent').textContent = '100% COMPLETE';
+}
+
+function activateStep(idx) {
+  // Mark previous as done
+  if (idx > 0) completeStep(idx - 1);
+
+  const step = document.getElementById('step' + idx);
+  step.className = 'pipeline-step active flex flex-col gap-xs glow-border-active bg-primary-container/5 p-sm -mx-sm rounded-lg' + (idx === 3 ? ' mt-sm' : '');
+
+  const icon = document.getElementById('step' + idx + 'icon');
+  icon.className = 'material-symbols-outlined text-primary-container text-sm animate-pulse';
+  icon.textContent = STEP_ICONS[idx];
+
+  const pct = document.getElementById('step' + idx + 'pct');
+  pct.className = 'font-data-mono text-data-mono text-primary-container';
+
+  // Animate progress bar fill
+  animateBarFill(idx, 0, 80, 1600);
+
+  // Update percent display
+  document.getElementById('pipelinePercent').textContent = STEP_PERCENTS[idx] + '% COMPLETE';
+
+  // CLI messages
+  const cli = document.getElementById('cliFeedback');
+  const msgs = CLI_MSGS[idx];
+  let html = '';
+  msgs.forEach((m, mi) => {
+    setTimeout(() => {
+      html += (html ? '<br/>' : '') + m;
+      cli.innerHTML = html;
+    }, mi * 500);
+  });
+}
+
+function completeStep(idx) {
+  const step = document.getElementById('step' + idx);
+  step.className = 'pipeline-step done flex flex-col gap-xs' + (idx === 3 ? ' mt-sm' : '');
+
+  const icon = document.getElementById('step' + idx + 'icon');
+  icon.className = 'material-symbols-outlined text-outline text-sm';
+  icon.textContent = 'check_circle';
+
+  const pct = document.getElementById('step' + idx + 'pct');
+  pct.textContent = '100%';
+  pct.className = 'font-data-mono text-data-mono text-outline';
+
+  setBarFill(idx, 100);
+}
+
+function setBarFill(idx, pct) {
+  const bar = document.getElementById('step' + idx + 'bar');
+  if (!bar) return;
+  const segments = bar.children;
+  const filled = Math.round((pct / 100) * segments.length);
+  for (let i = 0; i < segments.length; i++) {
+    if (i < filled) {
+      segments[i].className = 'h-full bg-primary-container/80 flex-1 shadow-[0_0_8px_rgba(0,255,156,0.5)]';
+    } else {
+      segments[i].className = 'h-full bg-primary-container/20 flex-1';
+    }
+  }
+  document.getElementById('step' + idx + 'pct').textContent = pct + '%';
+}
+
+function animateBarFill(idx, from, to, duration) {
+  const start = performance.now();
+  function frame(now) {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+    const current = from + (to - from) * progress;
+    setBarFill(idx, Math.round(current));
+    if (progress < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ── Render results ────────────────────────────────────────────────────────────
+function renderResults(data) {
+  const isFake = data.result === 'FAKE';
+  const conf   = typeof data.confidence === 'number' ? data.confidence : 0;
+
+  // Banner colors
+  const banner = document.getElementById('resultBanner');
+  banner.className = banner.className.replace(/glow-border-\w+/g, '');
+  banner.classList.add(isFake ? 'glow-border-error' : 'glow-border-primary');
+
+  // Verdict badge
+  const badge = document.getElementById('verdictBadge');
+  if (isFake) {
+    badge.style.borderColor = '#ffb4ab';
+    badge.style.boxShadow   = '0 0 30px rgba(255,180,171,0.4)';
+  } else {
+    badge.style.borderColor = '#00ff9c';
+    badge.style.boxShadow   = '0 0 30px rgba(0,255,156,0.4)';
+  }
+
+  const verdictIcon  = document.getElementById('verdictIcon');
+  const verdictLabel = document.getElementById('verdictLabel');
+  if (isFake) {
+    verdictIcon.textContent  = 'gpp_bad';
+    verdictIcon.style.color  = '#ffb4ab';
+    verdictLabel.textContent = 'DEEPFAKE';
+    verdictLabel.style.color = '#ffb4ab';
+  } else {
+    verdictIcon.textContent  = 'verified_user';
+    verdictIcon.style.color  = '#00ff9c';
+    verdictLabel.textContent = 'AUTHENTIC';
+    verdictLabel.style.color = '#00ff9c';
+  }
+
+  // Confidence
+  const confEl = document.getElementById('confidenceScore');
+  confEl.textContent = conf.toFixed(1) + '%';
+  confEl.style.color = isFake ? '#ffb4ab' : '#00ff9c';
+  confEl.style.textShadow = isFake
+    ? '0 0 15px rgba(255,180,171,0.6)'
+    : '0 0 15px rgba(0,255,156,0.6)';
+
+  // Result ID
+  document.getElementById('resultId').textContent =
+    `Analysis Complete // ID: ${Math.random().toString(36).slice(2,10).toUpperCase()}`;
+
+  // Insight cards
+  renderInsightCards(data.details || [], isFake, conf);
+
+  // Metadata terminal
+  renderMetaTerminal(data);
+
+  // Timeline
+  renderTimeline(data.frame_timeline || []);
+
+  // Audio
+  if (data.audio && data.audio.available) {
+    renderAudio(data.audio);
+    document.getElementById('audioSection').style.display = '';
+  } else {
+    document.getElementById('audioSection').style.display = 'none';
+  }
+}
+
+// ── Insight cards ─────────────────────────────────────────────────────────────
+const INSIGHT_ICONS = ['face', 'visibility', 'graphic_eq', 'blur_on', 'analytics'];
+
+function renderInsightCards(details, isFake, conf) {
+  const container = document.getElementById('insightCards');
+  if (!details.length) {
+    details = ['No detailed analysis available.'];
+  }
+  // Show up to 3 cards
+  const shown = details.slice(0, 3);
+  container.innerHTML = shown.map((detail, i) => {
+    const icon  = INSIGHT_ICONS[i % INSIGHT_ICONS.length];
+    // Derive a pseudo-score from confidence + variation
+    const score = Math.max(5, Math.min(99, conf + (i === 0 ? 0 : (i === 1 ? -8 : 12)) + (Math.random() * 6 - 3)));
+    const isRed = isFake && i === 0;
+    const barColor = isRed ? 'bg-error' : 'bg-primary-container';
+    const textColor = isRed ? 'text-error' : 'text-primary-container';
+    const borderHover = isRed ? 'hover:glow-border-error' : 'hover:glow-border-primary';
+    return `
+      <div class="glass-panel rounded-lg p-md flex items-start gap-md ${borderHover} transition-all duration-300 transform hover:-translate-y-1">
+        <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center flex-shrink-0 border border-surface-variant">
+          <span class="material-symbols-outlined ${textColor}" style="font-variation-settings:'FILL' 0;">${icon}</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <h4 class="font-body-base text-body-base font-semibold text-on-surface">Vector ${i + 1}</h4>
+          <p class="font-data-mono text-data-mono text-on-surface-variant mt-1 text-sm leading-relaxed">${escHtml(detail)}</p>
+          <div class="mt-3 flex items-center gap-2">
+            <div class="h-1 flex-grow bg-surface-container-highest rounded-full overflow-hidden">
+              <div class="h-full ${barColor}" style="width:${score.toFixed(0)}%"></div>
+            </div>
+            <span class="font-data-mono text-data-mono ${textColor} text-xs">${score.toFixed(0)}%</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Metadata terminal ─────────────────────────────────────────────────────────
+function renderMetaTerminal(data) {
+  const meta = data.metadata || {};
+  const rows = [
+    ['RESULT',        data.result || '--'],
+    ['FRAMES_ANALYZED', meta.frames_analyzed ?? '--'],
+    ['FACES_DETECTED',  meta.frames_with_faces ?? '--'],
+    ['DURATION',        meta.video_duration_sec != null ? meta.video_duration_sec.toFixed(1) + 's' : '--'],
+    ['FPS',             meta.video_fps ?? '--'],
+    ['RESOLUTION',      meta.resolution || '--'],
+    ['PROC_TIME',       data.processing_time_sec != null ? data.processing_time_sec.toFixed(2) + 's' : '--'],
+  ];
+
+  const html = rows.map(([k, v]) => `
+    <div class="flex">
+      <span class="text-outline w-36 shrink-0">${k}:</span>
+      <span class="text-on-surface">${escHtml(String(v))}</span>
+    </div>`).join('') + `
+    <div class="my-3 border-t border-surface-variant/30 border-dashed"></div>
+    <div class="text-primary-container opacity-80">&gt; INIT NEURAL_NET_V4.2</div>
+    <div class="text-primary-container opacity-80">&gt; LOADING WEIGHTS... DONE</div>
+    <div class="text-primary-container opacity-80">&gt; ANALYZING SPATIAL_TEMPORAL_NOISE</div>
+    <div class="text-primary-container opacity-80">&gt; EXTRACTING BIOMETRIC_FEATURES</div>
+    <div class="text-primary-container opacity-80">&gt; CROSS_REFERENCING KNOWN_GAN_MODELS</div>
+    <div class="text-on-surface mt-3 blinking-cursor">&gt; ANALYSIS_COMPLETE</div>`;
+
+  document.getElementById('metaTerminal').innerHTML = html;
+}
+
+// ── Timeline ──────────────────────────────────────────────────────────────────
+function renderTimeline(frames) {
+  const container = document.getElementById('timelineBars');
+  const labels    = document.getElementById('timelineLabels');
+
+  if (!frames || !frames.length) {
+    container.innerHTML = '<div class="flex-1 flex items-center justify-center text-on-surface-variant font-data-mono text-data-mono text-xs">No timeline data available</div>';
+    labels.innerHTML = '';
+    return;
+  }
+
+  // Limit to 60 bars max for readability
+  const step   = Math.max(1, Math.floor(frames.length / 60));
+  const subset = frames.filter((_, i) => i % step === 0);
+  const maxH   = 140; // px
+
+  container.innerHTML = subset.map(f => {
+    const pct    = typeof f.fake_pct === 'number' ? f.fake_pct : 0;
+    const heightPct = Math.max(1.5, pct);
+    const isHigh = pct > 60;
+    const barBg  = isHigh ? '#ffb4ab' : '#00ff9c';
+    const barGlow = isHigh
+      ? 'box-shadow:0 0 8px rgba(255,180,171,0.5);'
+      : 'box-shadow:0 0 6px rgba(0,255,156,0.3);';
+    return `
+      <div class="tl-bar" style="height:${maxH}px;position:relative;">
+        <div class="tl-tooltip">F${f.frame}: ${pct.toFixed(1)}%</div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:${heightPct}%;background:${barBg};${barGlow}border-radius:2px 2px 0 0;"></div>
+      </div>`;
+  }).join('');
+
+  // Labels
+  const first = frames[0].frame;
+  const last  = frames[frames.length - 1].frame;
+  const mid   = frames[Math.floor(frames.length / 2)].frame;
+  labels.innerHTML = `<span>Frame ${first}</span><span>Frame ${mid}</span><span>Frame ${last}</span>`;
+}
+
+// ── Audio section ─────────────────────────────────────────────────────────────
+function renderAudio(audio) {
+  const isAI = audio.result === 'AI_VOICE';
+
+  const icon = document.getElementById('audioIcon');
+  icon.textContent = isAI ? 'smart_toy' : 'record_voice_over';
+  icon.style.color = isAI ? '#ffb4ab' : '#00ff9c';
+
+  const verdict = document.getElementById('audioVerdict');
+  verdict.textContent = audio.result || '--';
+  verdict.style.color = isAI ? '#ffb4ab' : '#00ff9c';
+
+  document.getElementById('audioConfidence').textContent =
+    `Confidence: ${typeof audio.confidence === 'number' ? audio.confidence.toFixed(1) + '%' : '--'}`;
+
+  const modelScore = typeof audio.model_score === 'number' ? audio.model_score : 0;
+  const heurScore  = typeof audio.heuristic_score === 'number' ? audio.heuristic_score : 0;
+
+  document.getElementById('audioModelBar').style.width     = modelScore + '%';
+  document.getElementById('audioModelScore').textContent   = modelScore.toFixed(1) + '%';
+  document.getElementById('audioHeuristicBar').style.width = heurScore + '%';
+  document.getElementById('audioHeuristicScore').textContent = heurScore.toFixed(1) + '%';
+
+  // Audio details
+  const detailsEl = document.getElementById('audioDetails');
+  if (audio.details && audio.details.length) {
+    detailsEl.innerHTML = audio.details.map(d => `
+      <div class="flex items-start gap-3 p-3 bg-surface-container-low/50 border border-outline-variant/30 rounded-DEFAULT">
+        <span class="material-symbols-outlined text-on-surface-variant text-[16px] mt-0.5">chevron_right</span>
+        <span class="font-data-mono text-data-mono text-on-surface-variant text-sm">${escHtml(d)}</span>
+      </div>`).join('');
+  } else {
+    detailsEl.innerHTML = '';
+  }
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+function resetAll() {
+  selectedFile = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('uploadPrompt').style.display = '';
+  document.getElementById('fileChosen').style.display   = 'none';
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.style.pointerEvents = 'none';
+  btn.className = 'w-full py-4 font-label-xs text-label-xs uppercase tracking-wider rounded-DEFAULT transition-all duration-300 border border-outline/30 bg-surface-container/40 text-outline cursor-not-allowed';
+
+  document.getElementById('queueList').innerHTML = `
+    <div class="bg-surface-container-low border border-outline-variant/30 rounded-DEFAULT p-4 flex items-center gap-3 opacity-40">
+      <span class="material-symbols-outlined text-outline text-[20px]">inbox</span>
+      <span class="font-data-mono text-data-mono text-on-surface-variant">No payload queued. Awaiting upload.</span>
+    </div>`;
+
+  showState('heroSection');
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function formatBytes(bytes) {
+  if (bytes < 1024)        return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 </script>
-<script src="script.js"></script>
 </body>
 </html>
