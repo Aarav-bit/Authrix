@@ -1,3 +1,14 @@
+---
+title: Authrix Deepfake Detector
+emoji: 🔍
+colorFrom: green
+colorTo: green
+sdk: docker
+pinned: false
+app_port: 7860
+license: mit
+---
+
 <div align="center">
 
 # 🔍 AUTHRIX
