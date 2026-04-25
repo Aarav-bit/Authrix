@@ -85,49 +85,70 @@ async def analyze_from_url(payload: dict):
     if not video_url:
         raise HTTPException(status_code=400, detail="No URL provided")
 
-    tmp_path = UPLOAD_DIR / f"ext_{uuid.uuid4().hex}.mp4"
+    # Use a unique prefix — yt-dlp appends its own extension
+    tmp_prefix = UPLOAD_DIR / f"ext_{uuid.uuid4().hex}"
+    actual_path = None
     downloaded = False
 
     try:
-        # Try yt-dlp first (YouTube, Twitter, Instagram, TikTok, etc.)
+        # ── yt-dlp: handles YouTube, Twitter, Instagram, TikTok ─────────────
         try:
             import yt_dlp
             ydl_opts = {
                 "format": "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best",
-                "outtmpl": str(tmp_path),
+                "outtmpl": str(tmp_prefix) + ".%(ext)s",   # yt-dlp adds extension
                 "quiet": True,
                 "no_warnings": True,
                 "merge_output_format": "mp4",
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([video_url])
-            downloaded = tmp_path.exists() and tmp_path.stat().st_size > 1000
-            if downloaded:
-                logger.info(f"yt-dlp downloaded {tmp_path.stat().st_size // 1024}KB")
+
+            # Find whatever file yt-dlp created
+            for ext in (".mp4", ".webm", ".mkv", ".avi", ".mov"):
+                candidate = Path(str(tmp_prefix) + ext)
+                if candidate.exists() and candidate.stat().st_size > 1000:
+                    actual_path = candidate
+                    downloaded = True
+                    logger.info(f"yt-dlp: {actual_path.name} ({actual_path.stat().st_size // 1024}KB)")
+                    break
+
+            # Glob fallback in case yt-dlp used a different naming scheme
+            if not downloaded:
+                for f in sorted(UPLOAD_DIR.glob(f"{tmp_prefix.name}*")):
+                    if f.stat().st_size > 1000:
+                        actual_path = f
+                        downloaded = True
+                        logger.info(f"yt-dlp (glob): {actual_path.name}")
+                        break
+
         except ImportError:
             logger.info("yt-dlp not installed — trying direct HTTP fetch")
         except Exception as e:
             logger.warning(f"yt-dlp failed ({e}) — trying direct fetch")
 
-        # Fallback: direct HTTP fetch for plain .mp4/.webm URLs
+        # ── Fallback: direct HTTP fetch for plain video URLs ─────────────────
         if not downloaded:
             try:
                 import httpx
+                actual_path = Path(str(tmp_prefix) + ".mp4")
                 async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
                     r = await client.get(video_url, headers={"User-Agent": "Mozilla/5.0"})
-                    if r.status_code == 200:
-                        tmp_path.write_bytes(r.content)
-                        downloaded = tmp_path.exists() and tmp_path.stat().st_size > 1000
+                    if r.status_code == 200 and len(r.content) > 1000:
+                        actual_path.write_bytes(r.content)
+                        downloaded = True
+                        logger.info(f"Direct fetch: {len(r.content) // 1024}KB")
             except Exception as e:
                 logger.warning(f"Direct fetch failed: {e}")
 
-        if not downloaded:
+        if not downloaded or actual_path is None:
             raise HTTPException(
                 status_code=400,
-                detail="Could not download video. For YouTube, install yt-dlp: pip install yt-dlp"
+                detail="Could not download video. For YouTube, ensure yt-dlp is installed: pip install yt-dlp"
             )
 
-        result = authenticator.analyze(str(tmp_path))
+        # Analyze — no file extension check needed here (yt-dlp handles format)
+        result = authenticator.analyze(str(actual_path))
         return result
 
     except HTTPException:
@@ -136,8 +157,12 @@ async def analyze_from_url(payload: dict):
         logger.exception(f"analyze-url failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        if tmp_path.exists():
-            tmp_path.unlink()
+        # Clean up all files with our prefix
+        for f in UPLOAD_DIR.glob(f"{tmp_prefix.name}*"):
+            try:
+                f.unlink()
+            except Exception:
+                pass
 
 
 @app.post("/analyze")
