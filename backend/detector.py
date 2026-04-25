@@ -308,7 +308,18 @@ class DecisionAgent:
         return float(np.mean(scores))
 
     def analyze_face(self, face_crop: np.ndarray) -> float:
-        """Analyze a single face crop. Returns fake probability (0-1)."""
+        """
+        Analyze a single face crop. Returns fake probability (0-1).
+        Returns None if the crop is too blurry/low-quality to be reliable.
+        """
+        # ── Quality gate: skip blurry or tiny crops ──────────────────
+        gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY)
+        blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
+        if blur_score < 40:
+            # Too blurry — motion blur, compression, side-profile
+            logger.debug(f"Skipping low-quality crop (blur={blur_score:.1f})")
+            return None  # type: ignore[return-value]
+
         if self.use_hf_model:
             try:
                 return self._hf_predict(face_crop)
@@ -324,39 +335,66 @@ class DecisionAgent:
     ) -> dict:
         """
         Aggregate predictions across all frames and faces.
-        Scoring: 60% mean + 40% 75th-percentile so that a cluster of
-        highly-fake frames pushes the overall score up decisively.
+
+        Scoring strategy (balanced for precision AND recall):
+        - Skip blurry/low-quality face crops
+        - Use MEAN of valid face scores per frame (not max — max causes false positives)
+        - Final score = 70% mean + 30% p60 (mild upward nudge for genuinely fake videos)
+        - Require at least 3 valid frames before trusting the result
         """
         frame_scores = []
         frames_with_faces = 0
+        frames_skipped_quality = 0
 
         for i, crops in enumerate(face_crops_per_frame):
             if not crops:
                 continue
+
+            valid_probs = []
+            for crop in crops:
+                score = self.analyze_face(crop)
+                if score is not None:
+                    valid_probs.append(score)
+
+            if not valid_probs:
+                frames_skipped_quality += 1
+                continue
+
             frames_with_faces += 1
-            face_probs = [self.analyze_face(crop) for crop in crops]
-            # Use max face score per frame (worst-case face wins)
-            frame_score = float(max(face_probs))
+            # Mean across valid faces in this frame (not max)
+            frame_score = float(np.mean(valid_probs))
             frame_scores.append({"frame_index": i, "fake_probability": round(frame_score, 4)})
+
+        if frames_skipped_quality > 0:
+            logger.info(f"Skipped {frames_skipped_quality} frames due to low face quality")
 
         if not frame_scores:
             return {
                 "frame_scores": [],
-                "overall_fake_probability": 0.5,
+                "overall_fake_probability": 0.45,  # lean toward REAL when no data
                 "frames_analyzed": len(frames),
                 "frames_with_faces": 0,
             }
 
         probs = [s["fake_probability"] for s in frame_scores]
 
-        # Robust aggregation: blend mean with 75th percentile
-        mean_prob = float(np.mean(probs))
-        p75_prob  = float(np.percentile(probs, 75))
-        overall   = round(mean_prob * 0.60 + p75_prob * 0.40, 4)
+        # Need at least 3 valid frames for a reliable result
+        if len(probs) < 3:
+            logger.info(f"Only {len(probs)} valid frames — low confidence result")
+            overall = float(np.mean(probs)) * 0.85  # dampen uncertain results
+        else:
+            mean_prob = float(np.mean(probs))
+            p60_prob  = float(np.percentile(probs, 60))
+            # 70% mean + 30% p60 — mild nudge, won't over-amplify outliers
+            overall   = mean_prob * 0.70 + p60_prob * 0.30
+
+        overall = round(float(np.clip(overall, 0.0, 1.0)), 4)
 
         logger.info(
-            f"Scores — mean: {mean_prob:.3f}, p75: {p75_prob:.3f}, "
-            f"final: {overall:.3f} ({frames_with_faces}/{len(frames)} frames had faces)"
+            f"Scores — mean: {float(np.mean(probs)):.3f}, "
+            f"p60: {float(np.percentile(probs, 60)):.3f}, "
+            f"final: {overall:.3f} "
+            f"({frames_with_faces}/{len(frames)} frames had usable faces)"
         )
 
         return {
@@ -372,11 +410,10 @@ class DecisionAgent:
 # Builds the final human-readable report
 # ─────────────────────────────────────────────
 class ReportGeneratorAgent:
-    FAKE_THRESHOLD = 0.55   # Slightly lower threshold — better recall
+    FAKE_THRESHOLD = 0.65   # Higher threshold = fewer false positives on real videos
 
     def generate(self, analysis: dict, metadata: dict) -> dict:
         prob       = analysis["overall_fake_probability"]
-        # Calibrate: stretch confidence away from 50% for clearer display
         calibrated = self._calibrate(prob)
         confidence = round(calibrated * 100, 1)
         is_fake    = prob >= self.FAKE_THRESHOLD
@@ -391,22 +428,21 @@ class ReportGeneratorAgent:
             "details":    details,
             "frame_timeline": frame_timeline,
             "metadata": {
-                "frames_analyzed":   analysis.get("frames_analyzed", 0),
-                "frames_with_faces": analysis.get("frames_with_faces", 0),
+                "frames_analyzed":    analysis.get("frames_analyzed", 0),
+                "frames_with_faces":  analysis.get("frames_with_faces", 0),
                 "video_duration_sec": metadata.get("duration_sec", 0),
-                "video_fps":         metadata.get("fps", 0),
-                "resolution":        f"{metadata.get('width', 0)}x{metadata.get('height', 0)}",
+                "video_fps":          metadata.get("fps", 0),
+                "resolution":         f"{metadata.get('width', 0)}x{metadata.get('height', 0)}",
             },
         }
 
     @staticmethod
     def _calibrate(prob: float) -> float:
         """
-        Stretch probability away from 0.5 so the confidence bar feels decisive.
-        Maps [0,1] → [0,1] with a sigmoid-like curve centered at 0.5.
+        Gentle calibration — only stretch scores that are clearly above/below 0.5.
+        Avoids over-inflating borderline scores (0.55-0.65 range).
         """
-        # Shift to [-1, 1], apply tanh sharpening, shift back
-        x = (prob - 0.5) * 3.5          # amplify
+        x = (prob - 0.5) * 2.5      # gentler amplification than before
         stretched = np.tanh(x) * 0.5 + 0.5
         return float(np.clip(stretched, 0.01, 0.99))
 
