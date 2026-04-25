@@ -269,7 +269,8 @@ function renderTimeline(data, isFake) {
   if (!chart) return;
   chart.innerHTML = '';
 
-  const frames = data.frame_scores || [];
+  // Backend sends frame_timeline: [{frame, fake_pct}, ...]
+  const frames = data.frame_timeline || data.frame_scores || [];
   if (!frames.length) {
     chart.innerHTML = '<span style="font-size:11px;color:var(--muted);font-family:\'JetBrains Mono\',monospace;margin:auto;">No per-frame data available</span>';
     return;
@@ -279,9 +280,12 @@ function renderTimeline(data, isFake) {
   const barColor = isFake ? '#ff3355' : '#00ff88';
   const barGlow  = isFake ? 'rgba(255,51,85,0.5)' : 'rgba(0,255,136,0.5)';
 
-  frames.forEach((score, i) => {
-    const pct = Math.round(score * 100);
-    const h   = Math.max(4, Math.round((score) * maxH));
+  frames.forEach((point, i) => {
+    // Support both {fake_pct: 72.1} and {fake_probability: 0.721}
+    const pct   = point.fake_pct != null ? point.fake_pct : (point.fake_probability * 100);
+    const score = pct / 100;
+    const h     = Math.max(4, Math.round(score * maxH));
+    const hot   = pct >= 60;
 
     const wrap = document.createElement('div');
     wrap.className = 'bar-wrap';
@@ -294,22 +298,21 @@ function renderTimeline(data, isFake) {
     const inner = document.createElement('div');
     inner.className = 'bar-inner';
     inner.style.height = '0px';
-    inner.style.background = score > 0.5
+    inner.style.background = hot
       ? `linear-gradient(to top, ${barColor}, rgba(255,255,255,0.3))`
       : 'rgba(255,255,255,0.12)';
-    if (score > 0.5) inner.style.boxShadow = `0 0 8px ${barGlow}`;
+    if (hot) inner.style.boxShadow = `0 0 8px ${barGlow}`;
 
     outer.appendChild(inner);
 
     const tip = document.createElement('div');
     tip.className = 'bar-tooltip';
-    tip.textContent = `F${i+1}: ${pct}%`;
+    tip.textContent = `Frame ${point.frame != null ? point.frame : i}: ${pct.toFixed(1)}%`;
 
     wrap.appendChild(outer);
     wrap.appendChild(tip);
     chart.appendChild(wrap);
 
-    // Animate in
     setTimeout(() => { inner.style.height = h + 'px'; }, 50 + i * 20);
   });
 
