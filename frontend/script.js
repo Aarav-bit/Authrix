@@ -102,6 +102,7 @@ async function analyzeVideo() {
       throw new Error(e.detail || `Server error ${res.status}`);
     }
     const data = await res.json();
+    console.log('[API Response] keys:', Object.keys(data), '| frame_timeline length:', data.frame_timeline?.length);
     renderResult(data);
   } catch (err) {
     showError(err.message || 'Connection to analysis engine failed.');
@@ -271,6 +272,7 @@ function renderTimeline(data, isFake) {
 
   // Backend sends frame_timeline: [{frame, fake_pct}, ...]
   const frames = data.frame_timeline || data.frame_scores || [];
+  console.log('[Timeline] frame_timeline:', data.frame_timeline?.length, 'frames:', frames.length, 'sample:', frames[0]);
   if (!frames.length) {
     chart.innerHTML = '<span style="font-size:11px;color:var(--muted);font-family:\'JetBrains Mono\',monospace;margin:auto;">No per-frame data available</span>';
     return;

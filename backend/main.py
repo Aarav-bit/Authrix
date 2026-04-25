@@ -138,14 +138,22 @@ async def analyze_video(file: UploadFile = File(...)):
 frontend_path = Path(__file__).parent.parent / "frontend-vanilla"
 
 if frontend_path.exists():
-    @app.get("/")
-    async def serve_index():
-        return FileResponse(str(frontend_path / "index.html"))
-
     @app.get("/script.js")
     async def serve_script():
-        return FileResponse(str(frontend_path / "script.js"),
-                            media_type="application/javascript")
+        from fastapi.responses import FileResponse
+        return FileResponse(
+            str(frontend_path / "script.js"),
+            media_type="application/javascript",
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+        )
+
+    @app.get("/")
+    async def serve_index():
+        from fastapi.responses import FileResponse
+        return FileResponse(
+            str(frontend_path / "index.html"),
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+        )
 
 
 if __name__ == "__main__":
