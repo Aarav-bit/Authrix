@@ -36,6 +36,13 @@ desktop.ini
 # Stitch design files (not needed for deployment)
 stitch_authrix_deepfake_detection_engine/
 
+# PNG/binary files (use Git LFS or HF Xet for these)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+
 # Test artifacts
 *.mp4
 *.avi
