@@ -11,8 +11,283 @@ from pathlib import Path
 from typing import Optional
 import time
 import concurrent.futures
+import struct
+import json
 
 logger = logging.getLogger(__name__)
+
+
+# ─────────────────────────────────────────────
+# Agent 0a: C2PA / Metadata Agent
+# Detects Content Credentials from AI generators
+# (Veo3, Sora, Runway, Firefly, DALL-E, etc.)
+# ─────────────────────────────────────────────
+class MetadataAgent:
+    # Known AI generator signatures in file metadata
+    AI_GENERATOR_SIGNATURES = [
+        # C2PA / Content Credentials markers
+        b'c2pa', b'C2PA', b'jumbf', b'JUMBF',
+        # Google Veo / DeepMind
+        b'veo', b'Veo', b'google/veo',
+        # OpenAI Sora
+        b'sora', b'Sora', b'openai',
+        # Runway
+        b'runway', b'Runway',
+        # Stability AI
+        b'stability', b'StableDiffusion', b'stable-diffusion',
+        # Meta
+        b'emu_video', b'EmuVideo',
+        # Adobe Firefly
+        b'firefly', b'adobe:firefly',
+        # Pika
+        b'pika', b'PikaLabs',
+        # Kling
+        b'kling', b'KlingAI',
+        # General AI markers
+        b'ai_generated', b'AI_GENERATED', b'synthetic_media',
+        b'generative_ai', b'text_to_video', b'diffusion_model',
+        # XMP metadata markers
+        b'<dc:creator>AI</dc:creator>',
+        b'xmp:CreatorTool>AI',
+        b'Kling', b'HailuoAI', b'MiniMax',
+    ]
+
+    # Known AI tool names in metadata strings
+    AI_TOOL_NAMES = [
+        'veo', 'sora', 'runway', 'pika', 'kling', 'hailuo', 'minimax',
+        'stable diffusion', 'stablediffusion', 'midjourney', 'dall-e',
+        'firefly', 'emu video', 'lumiere', 'imagen video', 'phenaki',
+        'make-a-video', 'cogvideo', 'text2video', 'gen-2', 'gen-3',
+        'ai generated', 'synthetic', 'generative',
+    ]
+
+    def analyze(self, video_path: str) -> dict:
+        """
+        Scan file bytes and metadata for AI generator signatures.
+        Returns result dict with found signals.
+        """
+        result = {
+            "ai_signatures_found": [],
+            "c2pa_detected":       False,
+            "ai_tool_detected":    None,
+            "is_ai_generated":     False,
+            "confidence":          0.0,
+        }
+
+        try:
+            path = Path(video_path)
+            if not path.exists():
+                return result
+
+            # Read first 512KB and last 64KB (metadata is usually at start/end)
+            file_size = path.stat().st_size
+            with open(video_path, 'rb') as f:
+                header = f.read(min(524288, file_size))
+                if file_size > 524288:
+                    f.seek(max(0, file_size - 65536))
+                    footer = f.read(65536)
+                else:
+                    footer = b''
+
+            scan_data = header + footer
+            scan_lower = scan_data.lower()
+
+            # Check binary signatures
+            for sig in self.AI_GENERATOR_SIGNATURES:
+                if sig.lower() in scan_lower:
+                    result["ai_signatures_found"].append(sig.decode(errors='ignore').strip())
+                    if b'c2pa' in sig.lower() or b'jumbf' in sig.lower():
+                        result["c2pa_detected"] = True
+
+            # Check readable text sections for tool names
+            try:
+                text_content = scan_data.decode('utf-8', errors='ignore').lower()
+                for tool in self.AI_TOOL_NAMES:
+                    if tool in text_content:
+                        result["ai_tool_detected"] = tool
+                        result["ai_signatures_found"].append(f"tool:{tool}")
+                        break
+            except Exception:
+                pass
+
+            # Check MP4/MOV metadata boxes (udta, ©too, ©swr, XMP)
+            try:
+                mp4_meta = self._parse_mp4_metadata(video_path)
+                for key, val in mp4_meta.items():
+                    val_lower = str(val).lower()
+                    for tool in self.AI_TOOL_NAMES:
+                        if tool in val_lower:
+                            result["ai_tool_detected"] = f"{key}:{tool}"
+                            result["ai_signatures_found"].append(f"mp4:{key}={val[:60]}")
+                            break
+            except Exception:
+                pass
+
+            # Determine final verdict
+            n_signals = len(set(result["ai_signatures_found"]))
+            if result["c2pa_detected"]:
+                result["is_ai_generated"] = True
+                result["confidence"]      = 0.98
+            elif n_signals >= 2:
+                result["is_ai_generated"] = True
+                result["confidence"]      = 0.92
+            elif n_signals == 1:
+                result["is_ai_generated"] = True
+                result["confidence"]      = 0.82
+
+            if result["is_ai_generated"]:
+                logger.info(
+                    f"AI metadata detected: c2pa={result['c2pa_detected']} "
+                    f"tool={result['ai_tool_detected']} "
+                    f"signals={result['ai_signatures_found'][:3]}"
+                )
+
+        except Exception as e:
+            logger.warning(f"Metadata analysis failed: {e}")
+
+        return result
+
+    def _parse_mp4_metadata(self, video_path: str) -> dict:
+        """Parse MP4 metadata boxes for software/creator tags."""
+        meta = {}
+        try:
+            with open(video_path, 'rb') as f:
+                data = f.read(min(2097152, Path(video_path).stat().st_size))  # first 2MB
+
+            i = 0
+            while i < len(data) - 8:
+                try:
+                    size = struct.unpack('>I', data[i:i+4])[0]
+                    box  = data[i+4:i+8].decode('ascii', errors='ignore')
+                    if size < 8 or size > len(data):
+                        i += 1
+                        continue
+                    content = data[i+8:i+size]
+                    # Look for known metadata boxes
+                    if box in ('©too', '©swr', '©cmt', '©nam', 'XMP_', 'uuid'):
+                        text = content.decode('utf-8', errors='ignore').strip('\x00').strip()
+                        if text:
+                            meta[box] = text
+                    i += size
+                except Exception:
+                    i += 1
+        except Exception:
+            pass
+        return meta
+
+
+# ─────────────────────────────────────────────
+# Agent 0b: Temporal Consistency Agent
+# Detects frame-to-frame flickering in AI video
+# ─────────────────────────────────────────────
+class TemporalConsistencyAgent:
+    """
+    Modern AI video generators (Veo3, Sora, Runway) produce subtle
+    temporal inconsistencies invisible to the eye but measurable:
+    - Texture flickering in hair/background
+    - Unnatural motion smoothness (too perfect)
+    - Boundary artifacts between face and background
+    - Color channel inconsistency across frames
+    """
+
+    def analyze(self, frames: list[np.ndarray]) -> dict:
+        if len(frames) < 4:
+            return {"score": 0.5, "available": False, "signals": []}
+
+        signals  = []
+        scores   = []
+
+        try:
+            # ── 1. Pixel-level temporal variance ─────────────────────────
+            # AI video: unnaturally low variance in static regions
+            # Real video: natural noise/grain causes higher variance
+            gray_frames = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY).astype(np.float32)
+                           for f in frames]
+            stack       = np.stack(gray_frames, axis=0)  # [N, H, W]
+            pixel_var   = np.mean(np.var(stack, axis=0))  # mean variance per pixel
+
+            # Real video: pixel_var typically 50-300
+            # AI video: often < 30 (too smooth) or > 500 (flickering)
+            if pixel_var < 25:
+                scores.append(0.72)
+                signals.append(f"Unnaturally smooth temporal texture (var={pixel_var:.1f})")
+            elif pixel_var > 600:
+                scores.append(0.68)
+                signals.append(f"Excessive temporal flickering (var={pixel_var:.1f})")
+            else:
+                scores.append(0.30)
+
+            # ── 2. Frame difference consistency ──────────────────────────
+            # AI video: frame diffs are too uniform (generated at fixed rate)
+            # Real video: natural motion causes variable frame differences
+            diffs = []
+            for i in range(1, len(gray_frames)):
+                diff = np.mean(np.abs(gray_frames[i] - gray_frames[i-1]))
+                diffs.append(diff)
+
+            diff_std  = float(np.std(diffs))
+            diff_mean = float(np.mean(diffs))
+            diff_cv   = diff_std / (diff_mean + 1e-8)  # coefficient of variation
+
+            # Real video: CV typically 0.3-0.8 (variable motion)
+            # AI video: CV often < 0.15 (too uniform) or > 1.2 (unstable)
+            if diff_cv < 0.12:
+                scores.append(0.70)
+                signals.append(f"Unnaturally uniform motion pattern (CV={diff_cv:.3f})")
+            elif diff_cv > 1.3:
+                scores.append(0.65)
+                signals.append(f"Unstable frame transitions (CV={diff_cv:.3f})")
+            else:
+                scores.append(0.28)
+
+            # ── 3. High-frequency temporal noise ─────────────────────────
+            # Real cameras have consistent sensor noise patterns
+            # AI generators produce different noise each frame
+            if len(frames) >= 6:
+                noise_vars = []
+                for frame in frames:
+                    gray   = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
+                    blur   = cv2.GaussianBlur(gray, (5, 5), 0)
+                    noise  = gray - blur
+                    noise_vars.append(float(np.var(noise)))
+
+                noise_consistency = float(np.std(noise_vars) / (np.mean(noise_vars) + 1e-8))
+                if noise_consistency > 0.5:
+                    scores.append(0.66)
+                    signals.append(f"Inconsistent noise pattern across frames ({noise_consistency:.2f})")
+                else:
+                    scores.append(0.30)
+
+            # ── 4. Color channel temporal stability ───────────────────────
+            # AI video often has subtle color shifts between frames
+            channel_drifts = []
+            for i in range(1, min(len(frames), 15)):
+                b1, g1, r1 = cv2.split(frames[i-1].astype(np.float32))
+                b2, g2, r2 = cv2.split(frames[i].astype(np.float32))
+                drift = abs(np.mean(r1) - np.mean(r2)) + \
+                        abs(np.mean(g1) - np.mean(g2)) + \
+                        abs(np.mean(b1) - np.mean(b2))
+                channel_drifts.append(drift)
+
+            mean_drift = float(np.mean(channel_drifts))
+            if mean_drift > 8.0:
+                scores.append(0.68)
+                signals.append(f"Color channel drift between frames ({mean_drift:.1f})")
+            else:
+                scores.append(0.28)
+
+        except Exception as e:
+            logger.warning(f"Temporal analysis error: {e}")
+            return {"score": 0.5, "available": False, "signals": []}
+
+        final_score = float(np.mean(scores)) if scores else 0.5
+        logger.info(f"Temporal score: {final_score:.3f} signals={signals}")
+
+        return {
+            "score":     round(final_score, 4),
+            "available": True,
+            "signals":   signals,
+        }
 
 
 # ─────────────────────────────────────────────
@@ -382,11 +657,48 @@ class DecisionAgent:
 class ReportGeneratorAgent:
     BASE_THRESHOLD = 0.58  # Restored — 0.54 caused false positives
 
-    def generate(self, analysis: dict, metadata: dict, audio: dict | None = None) -> dict:
+    def generate(self, analysis: dict, metadata: dict, audio: dict | None = None,
+                 metadata_result: dict | None = None, temporal_result: dict | None = None) -> dict:
         prob        = analysis["overall_fake_probability"]
         consistency = analysis.get("consistency", 0.5)
         coverage    = analysis.get("face_coverage", 0.5)
 
+        # ── Metadata hard override (C2PA / AI tool signature) ─────────────
+        meta_ai = metadata_result and metadata_result.get("is_ai_generated", False)
+        if meta_ai:
+            # Hard signal — override visual result
+            is_fake    = True
+            calibrated = self._calibrate(max(prob, 0.80))
+            confidence = round(calibrated * 100, 1)
+            details    = self._build_details(
+                analysis, metadata, prob, True, self.BASE_THRESHOLD,
+                metadata_result=metadata_result, temporal_result=temporal_result
+            )
+            return {
+                "result":     "FAKE",
+                "confidence": confidence,
+                "details":    details,
+                "frame_timeline": self._build_timeline(analysis.get("frame_scores", [])),
+                "metadata": {
+                    "frames_analyzed":    analysis.get("frames_analyzed", 0),
+                    "frames_with_faces":  analysis.get("frames_with_faces", 0),
+                    "video_duration_sec": metadata.get("duration_sec", 0),
+                    "video_fps":          metadata.get("fps", 0),
+                    "resolution":         f"{metadata.get('width', 0)}x{metadata.get('height', 0)}",
+                },
+            }
+
+        # ── Temporal signal boost ─────────────────────────────────────────
+        temporal_score = 0.5
+        if temporal_result and temporal_result.get("available"):
+            temporal_score = temporal_result["score"]
+            # Blend temporal into visual probability (20% weight)
+            if temporal_score > 0.60:
+                prob = prob * 0.80 + temporal_score * 0.20
+                prob = round(float(np.clip(prob, 0.0, 1.0)), 4)
+                logger.info(f"Temporal boost applied: new prob={prob:.3f}")
+
+        # ── Adaptive visual threshold ─────────────────────────────────────
         threshold = self.BASE_THRESHOLD
         if consistency >= 0.70 and coverage >= 0.50:
             threshold -= 0.06
@@ -397,6 +709,7 @@ class ReportGeneratorAgent:
 
         visual_fake = prob >= threshold
 
+        # ── Audio signal ──────────────────────────────────────────────────
         audio_fake = False
         audio_prob = 0.0
         if audio and audio.get("available"):
@@ -423,11 +736,12 @@ class ReportGeneratorAgent:
         confidence = round(calibrated * 100, 1)
         result     = "FAKE" if is_fake else "REAL"
 
-        logger.info(
-            f"Decision: prob={prob:.3f} threshold={threshold:.3f} → {result}"
-        )
+        logger.info(f"Decision: prob={prob:.3f} threshold={threshold:.3f} → {result}")
 
-        details        = self._build_details(analysis, metadata, prob, is_fake, threshold)
+        details        = self._build_details(
+            analysis, metadata, prob, is_fake, threshold,
+            metadata_result=metadata_result, temporal_result=temporal_result
+        )
         frame_timeline = self._build_timeline(analysis.get("frame_scores", []))
 
         return {
@@ -457,22 +771,40 @@ class ReportGeneratorAgent:
         conf = base + (top - base) * (distance / 0.5) ** 0.6
         return float(np.clip(conf, 0.88, 0.99))
 
-    def _build_details(self, analysis, metadata, prob, is_fake, threshold=0.54) -> list[str]:
-        details      = []
-        frame_scores = analysis.get("frame_scores", [])
+    def _build_details(self, analysis, metadata, prob, is_fake, threshold=0.58,
+                       metadata_result=None, temporal_result=None) -> list[str]:
+        details           = []
+        frame_scores      = analysis.get("frame_scores", [])
         frames_with_faces = analysis.get("frames_with_faces", 0)
         frames_analyzed   = analysis.get("frames_analyzed", 0)
         probs = [s["fake_probability"] for s in frame_scores] if frame_scores else []
 
-        if is_fake:
-            if prob > 0.85:
-                details.append("Very high-confidence deepfake — manipulation detected in nearly every frame")
-            elif prob > 0.72:
-                details.append("Strong deepfake indicators detected across multiple facial regions")
-            elif prob > 0.60:
-                details.append("Significant facial manipulation artifacts identified by AI ensemble")
+        # ── Metadata signals (highest priority) ───────────────────────────
+        if metadata_result and metadata_result.get("is_ai_generated"):
+            tool = metadata_result.get("ai_tool_detected")
+            if metadata_result.get("c2pa_detected"):
+                details.append("⚠️ C2PA Content Credentials detected — video is cryptographically signed as AI-generated")
+            if tool:
+                details.append(f"AI generation tool identified in metadata: {tool.upper()}")
             else:
-                details.append("Subtle deepfake patterns detected — borderline manipulation")
+                details.append("AI generator signature found in file metadata")
+
+        # ── Temporal signals ──────────────────────────────────────────────
+        if temporal_result and temporal_result.get("available") and temporal_result.get("signals"):
+            for sig in temporal_result["signals"][:2]:
+                details.append(f"Temporal: {sig}")
+
+        # ── Visual signals ────────────────────────────────────────────────
+        if is_fake:
+            if not details:  # only add if no stronger signal already shown
+                if prob > 0.85:
+                    details.append("Very high-confidence deepfake — manipulation detected in nearly every frame")
+                elif prob > 0.72:
+                    details.append("Strong deepfake indicators detected across multiple facial regions")
+                elif prob > 0.60:
+                    details.append("Significant facial manipulation artifacts identified by AI ensemble")
+                else:
+                    details.append("Subtle deepfake patterns detected — borderline manipulation")
 
             if probs:
                 high_frames = sum(1 for p in probs if p >= 0.60)
@@ -480,19 +812,17 @@ class ReportGeneratorAgent:
                 details.append(f"Inconsistent manipulation across frames ({pct_high:.0f}% flagged)")
 
             details.append("Unnatural texture blending detected at facial boundary regions")
-            details.append("High-frequency noise patterns inconsistent with authentic camera footage")
 
-            if probs:
-                peak = max(probs)
-                if peak > 0.90:
-                    details.append(f"Peak frame confidence: {peak*100:.1f}% — extremely strong deepfake signal")
+            if probs and max(probs) > 0.90:
+                details.append(f"Peak frame confidence: {max(probs)*100:.1f}% — extremely strong signal")
         else:
-            if prob < 0.25:
-                details.append("Strong indicators of authentic, unmanipulated video content")
-            elif prob < 0.40:
-                details.append("No significant deepfake artifacts detected by either model")
-            else:
-                details.append("Video appears authentic — deepfake probability below detection threshold")
+            if not details:
+                if prob < 0.25:
+                    details.append("Strong indicators of authentic, unmanipulated video content")
+                elif prob < 0.40:
+                    details.append("No significant deepfake artifacts detected by either model")
+                else:
+                    details.append("Video appears authentic — deepfake probability below detection threshold")
 
             details.append("Natural facial texture and lighting consistency observed across frames")
             details.append("Compression artifacts consistent with genuine camera-captured footage")
@@ -502,8 +832,6 @@ class ReportGeneratorAgent:
 
         if frames_with_faces == 0:
             details.append("⚠️ No faces detected — result based on full-frame artifact analysis only")
-        elif frames_with_faces < frames_analyzed * 0.25:
-            details.append(f"⚠️ Low face coverage ({frames_with_faces}/{frames_analyzed} frames)")
 
         return details
 
@@ -523,6 +851,8 @@ class DeepfakeAuthenticator:
         self.face_agent     = FaceDetectorAgent(min_detection_confidence=0.3)
         self.decision_agent = DecisionAgent()
         self.report_agent   = ReportGeneratorAgent()
+        self.metadata_agent = MetadataAgent()
+        self.temporal_agent = TemporalConsistencyAgent()
         self._audio         = None
 
     def _get_audio(self):
@@ -540,10 +870,14 @@ class DeepfakeAuthenticator:
         start = time.time()
         logger.info(f"Starting analysis: {video_path} (fast_mode={fast_mode})")
 
-        # Fast mode: fewer frames for extension captures (8s video)
         max_frames = 20 if fast_mode else 40
 
-        # Step 1: Extract frames + metadata
+        # Step 1: Metadata check — instant, catches Veo3/Sora/Runway signatures
+        metadata_result = self.metadata_agent.analyze(video_path)
+        if metadata_result["is_ai_generated"]:
+            logger.info(f"AI metadata detected: {metadata_result['ai_signatures_found'][:3]}")
+
+        # Step 2: Extract frames
         metadata = self.frame_agent.get_video_metadata(video_path)
         frames   = self.frame_agent.extract_frames(video_path, max_frames=max_frames)
 
@@ -557,37 +891,48 @@ class DeepfakeAuthenticator:
                 "audio": {"available": False, "result": "NO_AUDIO", "confidence": 0, "details": []},
             }
 
-        # Step 2 & 3: Face detection + audio run in parallel
+        # Step 3: Temporal analysis — fast numpy, catches modern AI video patterns
+        temporal_result = self.temporal_agent.analyze(frames)
+
+        # Step 4: Face detection + audio in parallel
         audio_result = {"available": False, "result": "NO_AUDIO", "confidence": 0, "details": []}
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            # Face detection (all frames in one MediaPipe context)
             face_future  = executor.submit(self.face_agent.detect_all_frames, frames)
-
-            # Audio analysis runs concurrently
             audio_agent  = self._get_audio()
             audio_future = None
             if audio_agent:
                 audio_future = executor.submit(audio_agent.analyze, video_path, 0.5)
 
             face_crops_per_frame = face_future.result()
-
             if audio_future:
                 try:
                     audio_result = audio_future.result(timeout=30)
                 except Exception as e:
                     logger.warning(f"Audio analysis failed: {e}")
 
-        # Step 4: Visual decision (batched inference)
+        # Step 5: Visual decision
         analysis = self.decision_agent.analyze_frames(frames, face_crops_per_frame)
 
-        # Step 5: Generate report
-        report = self.report_agent.generate(analysis, metadata, audio_result)
+        # Step 6: Generate report combining all signals
+        report = self.report_agent.generate(
+            analysis, metadata, audio_result,
+            metadata_result=metadata_result,
+            temporal_result=temporal_result,
+        )
         report["processing_time_sec"] = round(time.time() - start, 2)
         report["audio"] = audio_result
+        report["metadata_check"] = {
+            "ai_generated":  metadata_result["is_ai_generated"],
+            "c2pa_detected": metadata_result["c2pa_detected"],
+            "tool_detected": metadata_result["ai_tool_detected"],
+            "signals":       metadata_result["ai_signatures_found"][:5],
+        }
 
         logger.info(
             f"Analysis complete: {report['result']} ({report['confidence']}%) "
+            f"meta_ai={metadata_result['is_ai_generated']} "
+            f"temporal={temporal_result['score']:.3f} "
             f"in {report['processing_time_sec']}s"
         )
         return report
