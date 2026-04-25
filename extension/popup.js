@@ -1,20 +1,29 @@
 /**
  * Authrix Extension — Popup Script
+ * Auto-detects and auto-analyzes videos on the current page.
  */
 
 const API_BASE = 'http://localhost:8000';
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  await checkHealth();
-  await detectPageVideo();
+  const [healthOk, found] = await Promise.all([checkHealth(), detectPageVideo()]);
   loadLastResult();
   wireButtons();
+
+  // AUTO-ANALYZE: if server is online and a video was found, start immediately
+  if (healthOk && found) {
+    const btn = document.getElementById('btnAnalyzePage');
+    if (!btn.disabled) {
+      // Small delay so user sees the popup before it closes
+      setTimeout(() => btn.click(), 400);
+    }
+  }
 });
 
-// ── Health check ──────────────────────────────────────────────────────────────
+// ── Health check — returns true if ready ─────────────────────────────────────
 async function checkHealth() {
-  const badge = document.getElementById('statusBadge');
+  const badge     = document.getElementById('statusBadge');
   const modelInfo = document.getElementById('modelInfo');
   try {
     const res = await fetch(`${API_BASE}/health`);
@@ -23,16 +32,18 @@ async function checkHealth() {
       badge.textContent = 'ONLINE';
       badge.classList.remove('offline');
       modelInfo.textContent = (d.model || 'VIT ENSEMBLE').toUpperCase().slice(0, 22);
-    } else {
-      badge.textContent = 'LOADING';
+      return true;
     }
+    badge.textContent = 'LOADING';
+    return false;
   } catch {
     badge.textContent = 'OFFLINE';
     badge.classList.add('offline');
+    return false;
   }
 }
 
-// ── Detect video on current tab ───────────────────────────────────────────────
+// ── Detect video on current tab — returns true if found ──────────────────────
 async function detectPageVideo() {
   const btn   = document.getElementById('btnAnalyzePage');
   const title = document.getElementById('pageTitle');
@@ -40,7 +51,7 @@ async function detectPageVideo() {
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) return;
+    if (!tab?.id) return false;
 
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -49,54 +60,113 @@ async function detectPageVideo() {
 
     const found = results?.[0]?.result;
     if (found?.url) {
-      title.textContent = found.title || 'Video detected';
+      title.textContent = found.label || found.title || 'Video detected';
       sub.textContent   = truncateUrl(found.url);
-      btn.disabled = false;
-      btn.dataset.url = found.url;
+      btn.disabled      = false;
+      btn.dataset.url   = found.url;
+      return true;
     } else {
       title.textContent = 'No video detected';
       sub.textContent   = 'Try right-clicking a video element';
-      btn.disabled = true;
+      btn.disabled      = true;
+      return false;
     }
   } catch {
     title.textContent = 'Cannot access this page';
     sub.textContent   = 'Extension pages are restricted';
+    return false;
   }
 }
 
-// ── Runs in page context ──────────────────────────────────────────────────────
+// ── Runs in page context — comprehensive video detection ─────────────────────
 function detectVideosOnPage() {
-  // Check <video> elements
-  const videos = Array.from(document.querySelectorAll('video'));
-  for (const v of videos) {
-    const src = v.src || v.querySelector('source')?.src;
-    if (src && src.startsWith('http')) {
-      return { url: src, title: document.title };
+  const url  = location.href;
+  const host = location.hostname;
+
+  // ── YouTube ──────────────────────────────────────────────────────────────
+  // youtube.com/watch?v=... or youtu.be/...
+  const ytWatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+  const ytShort = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+  const ytShorts = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/);
+  const ytId = (ytWatch?.[1] || ytShort?.[1] || ytShorts?.[1]);
+  if (ytId) {
+    return {
+      url:   `https://www.youtube.com/watch?v=${ytId}`,
+      label: '▶ YouTube: ' + (document.title.replace(' - YouTube','').slice(0,40)),
+      title: document.title,
+      type:  'youtube',
+    };
+  }
+
+  // ── Twitter / X ───────────────────────────────────────────────────────────
+  if (host.includes('twitter.com') || host.includes('x.com')) {
+    const twitterVid = document.querySelector('video[src*="video.twimg.com"]');
+    if (twitterVid?.src) {
+      return { url: twitterVid.src, label: '▶ Twitter/X video', title: document.title, type: 'direct' };
+    }
+    // Try blob → find the highest quality source
+    const allVids = Array.from(document.querySelectorAll('video'));
+    for (const v of allVids) {
+      const sources = Array.from(v.querySelectorAll('source'));
+      for (const s of sources) {
+        if (s.src && s.src.startsWith('http')) {
+          return { url: s.src, label: '▶ Twitter/X video', title: document.title, type: 'direct' };
+        }
+      }
     }
   }
-  // YouTube
-  const ytMatch = location.href.match(/[?&]v=([^&]+)/);
-  if (ytMatch) {
-    return { url: location.href, title: document.title };
+
+  // ── Instagram ─────────────────────────────────────────────────────────────
+  if (host.includes('instagram.com')) {
+    const igVid = document.querySelector('video');
+    if (igVid?.src && igVid.src.startsWith('http')) {
+      return { url: igVid.src, label: '▶ Instagram video', title: document.title, type: 'direct' };
+    }
   }
+
+  // ── Facebook ──────────────────────────────────────────────────────────────
+  if (host.includes('facebook.com') || host.includes('fb.watch')) {
+    const fbVid = document.querySelector('video[src*="fbcdn"]');
+    if (fbVid?.src) {
+      return { url: fbVid.src, label: '▶ Facebook video', title: document.title, type: 'direct' };
+    }
+  }
+
+  // ── Generic <video> with direct HTTP src ─────────────────────────────────
+  const videos = Array.from(document.querySelectorAll('video'));
+  for (const v of videos) {
+    // Direct src
+    if (v.src && v.src.startsWith('http') && !v.src.startsWith('blob:')) {
+      return { url: v.src, label: '▶ Video on page', title: document.title, type: 'direct' };
+    }
+    // <source> children
+    const sources = Array.from(v.querySelectorAll('source'));
+    for (const s of sources) {
+      if (s.src && s.src.startsWith('http')) {
+        return { url: s.src, label: '▶ Video on page', title: document.title, type: 'direct' };
+      }
+    }
+  }
+
+  // ── OG / meta video tag ───────────────────────────────────────────────────
+  const ogVideo = document.querySelector('meta[property="og:video"], meta[property="og:video:url"]');
+  if (ogVideo?.content) {
+    return { url: ogVideo.content, label: '▶ Embedded video', title: document.title, type: 'meta' };
+  }
+
   return null;
 }
 
 // ── Wire buttons ──────────────────────────────────────────────────────────────
 function wireButtons() {
-  // Analyze page video
   document.getElementById('btnAnalyzePage').addEventListener('click', async () => {
-    const btn = document.getElementById('btnAnalyzePage');
-    const url = btn.dataset.url;
-    if (!url) return;
-    await injectAndAnalyze(url);
+    const url = document.getElementById('btnAnalyzePage').dataset.url;
+    if (url) await injectAndAnalyze(url);
   });
 
-  // Manual URL
   document.getElementById('btnGo').addEventListener('click', async () => {
     const url = document.getElementById('urlInput').value.trim();
-    if (!url) return;
-    await injectAndAnalyze(url);
+    if (url) await injectAndAnalyze(url);
   });
 
   document.getElementById('urlInput').addEventListener('keydown', async (e) => {
@@ -107,7 +177,7 @@ function wireButtons() {
   });
 }
 
-// ── Inject overlay into active tab and trigger analysis ───────────────────────
+// ── Inject overlay and trigger analysis ──────────────────────────────────────
 async function injectAndAnalyze(url) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -123,8 +193,7 @@ async function injectAndAnalyze(url) {
       args: [url],
     });
 
-    // Close popup so user can see the overlay
-    window.close();
+    window.close(); // close popup so overlay is visible
   } catch (err) {
     console.error('[Authrix popup]', err);
   }
@@ -154,12 +223,11 @@ function loadLastResult() {
   });
 }
 
-// ── Utilities ─────────────────────────────────────────────────────────────────
 function truncateUrl(url) {
   try {
     const u = new URL(url);
-    return u.hostname + u.pathname.slice(0, 25);
+    return u.hostname + u.pathname.slice(0, 28);
   } catch {
-    return url.slice(0, 40);
+    return url.slice(0, 45);
   }
 }

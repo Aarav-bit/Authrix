@@ -49,9 +49,23 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'ANALYZE_URL') {
     analyzeVideoUrl(msg.url)
-      .then(result => sendResponse({ ok: true, result }))
-      .catch(err  => sendResponse({ ok: false, error: err.message }));
-    return true; // keep channel open for async
+      .then(result => {
+        chrome.storage.local.set({ lastResult: { ...result, file: msg.url.split('/').pop().slice(0,40) } });
+        sendResponse({ ok: true, result });
+      })
+      .catch(err => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
+  if (msg.type === 'ANALYZE_YOUTUBE') {
+    // Send YouTube URL directly to backend — backend handles yt-dlp download
+    analyzeYouTubeUrl(msg.url)
+      .then(result => {
+        chrome.storage.local.set({ lastResult: { ...result, file: 'YouTube video' } });
+        sendResponse({ ok: true, result });
+      })
+      .catch(err => sendResponse({ ok: false, error: err.message }));
+    return true;
   }
 
   if (msg.type === 'CHECK_HEALTH') {
@@ -63,24 +77,37 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'ANALYZE_FILE_BYTES') {
-    // Receive base64 video bytes from content script, send to backend
     analyzeBase64Video(msg.data, msg.filename, msg.mimeType)
-      .then(result => sendResponse({ ok: true, result }))
-      .catch(err   => sendResponse({ ok: false, error: err.message }));
+      .then(result => {
+        chrome.storage.local.set({ lastResult: { ...result, file: msg.filename } });
+        sendResponse({ ok: true, result });
+      })
+      .catch(err => sendResponse({ ok: false, error: err.message }));
     return true;
   }
 });
 
 // ── Analyze a video by URL ────────────────────────────────────────────────────
 async function analyzeVideoUrl(videoUrl) {
-  // First fetch the video as a blob
   const response = await fetch(videoUrl);
   if (!response.ok) throw new Error(`Failed to fetch video: ${response.status}`);
-
   const blob = await response.blob();
   const filename = videoUrl.split('/').pop().split('?')[0] || 'video.mp4';
-
   return sendToBackend(blob, filename);
+}
+
+// ── Analyze YouTube URL via backend ──────────────────────────────────────────
+async function analyzeYouTubeUrl(youtubeUrl) {
+  const res = await fetch(`${API_BASE}/analyze-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: youtubeUrl }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Backend error ${res.status}`);
+  }
+  return res.json();
 }
 
 // ── Analyze base64 video data ─────────────────────────────────────────────────

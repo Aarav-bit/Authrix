@@ -122,20 +122,26 @@ async function startAnalysis(videoUrl) {
   try {
     // Check if server is running first
     const health = await fetch('http://localhost:8000/health').catch(() => null);
-    if (!health?.ok) {
-      throw new Error('SERVER_OFFLINE');
+    if (!health?.ok) throw new Error('SERVER_OFFLINE');
+
+    const isYouTube = videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be');
+
+    let response;
+    if (isYouTube) {
+      // For YouTube, send the URL to backend's /analyze-url endpoint
+      response = await chrome.runtime.sendMessage({
+        type: 'ANALYZE_YOUTUBE',
+        url: videoUrl,
+      });
+    } else {
+      response = await chrome.runtime.sendMessage({
+        type: 'ANALYZE_URL',
+        url: videoUrl,
+      });
     }
 
-    // Send URL to background for fetching + analysis
-    const response = await chrome.runtime.sendMessage({
-      type: 'ANALYZE_URL',
-      url: videoUrl,
-    });
-
     stopStepAnimation();
-
     if (!response.ok) throw new Error(response.error || 'Analysis failed');
-
     renderResult(response.result, videoUrl);
   } catch (err) {
     stopStepAnimation();

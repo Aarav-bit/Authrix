@@ -75,6 +75,71 @@ async def health():
     }
 
 
+@app.post("/analyze-url")
+async def analyze_from_url(payload: dict):
+    """Download a video from a URL and analyze it. Used by the browser extension."""
+    if not authenticator:
+        raise HTTPException(status_code=503, detail="Server is still initializing")
+
+    video_url = payload.get("url", "").strip()
+    if not video_url:
+        raise HTTPException(status_code=400, detail="No URL provided")
+
+    tmp_path = UPLOAD_DIR / f"ext_{uuid.uuid4().hex}.mp4"
+    downloaded = False
+
+    try:
+        # Try yt-dlp first (YouTube, Twitter, Instagram, TikTok, etc.)
+        try:
+            import yt_dlp
+            ydl_opts = {
+                "format": "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best",
+                "outtmpl": str(tmp_path),
+                "quiet": True,
+                "no_warnings": True,
+                "merge_output_format": "mp4",
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([video_url])
+            downloaded = tmp_path.exists() and tmp_path.stat().st_size > 1000
+            if downloaded:
+                logger.info(f"yt-dlp downloaded {tmp_path.stat().st_size // 1024}KB")
+        except ImportError:
+            logger.info("yt-dlp not installed — trying direct HTTP fetch")
+        except Exception as e:
+            logger.warning(f"yt-dlp failed ({e}) — trying direct fetch")
+
+        # Fallback: direct HTTP fetch for plain .mp4/.webm URLs
+        if not downloaded:
+            try:
+                import httpx
+                async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+                    r = await client.get(video_url, headers={"User-Agent": "Mozilla/5.0"})
+                    if r.status_code == 200:
+                        tmp_path.write_bytes(r.content)
+                        downloaded = tmp_path.exists() and tmp_path.stat().st_size > 1000
+            except Exception as e:
+                logger.warning(f"Direct fetch failed: {e}")
+
+        if not downloaded:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not download video. For YouTube, install yt-dlp: pip install yt-dlp"
+            )
+
+        result = authenticator.analyze(str(tmp_path))
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"analyze-url failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+
 @app.post("/analyze")
 async def analyze_video(file: UploadFile = File(...)):
     """
