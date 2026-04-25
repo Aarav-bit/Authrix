@@ -444,15 +444,7 @@ class DecisionAgent:
                     logger.info(f"Loading model: {cfg['id']}")
                     proc  = ViTImageProcessor.from_pretrained(cfg["id"])
                     model = ViTForImageClassification.from_pretrained(cfg["id"])
-
-                    # ── Float16: 2× faster inference, negligible accuracy loss ──
-                    try:
-                        model = model.half()
-                        logger.info(f"Model {cfg['id']} converted to float16")
-                    except Exception:
-                        pass
-
-                    model.eval()
+                    model.eval()  # Keep float32 — float16 on CPU produces incorrect results
 
                     fake_idx = None
                     for idx, lbl in model.config.id2label.items():
@@ -502,22 +494,13 @@ class DecisionAgent:
         for model_idx, (proc, model, fake_idx) in enumerate(self.models):
             try:
                 model_scores = []
-                # Process in micro-batches
+                # Process in micro-batches — avoids OOM on CPU
                 for i in range(0, len(pil_imgs), MICRO_BATCH):
-                    batch = pil_imgs[i:i + MICRO_BATCH]
+                    batch  = pil_imgs[i:i + MICRO_BATCH]
                     inputs = proc(images=batch, return_tensors="pt")
-
-                    # Match model dtype
-                    model_dtype = next(model.parameters()).dtype
-                    if model_dtype == torch.float16:
-                        inputs = {
-                            k: v.half() if v.dtype == torch.float32 else v
-                            for k, v in inputs.items()
-                        }
-
                     with torch.no_grad():
-                        logits = model(**inputs).logits
-                        probs  = torch.softmax(logits.float(), dim=-1)
+                        logits = model(**inputs).logits          # float32
+                        probs  = torch.softmax(logits, dim=-1)   # [batch, classes]
                         scores = probs[:, fake_idx].tolist()
                     model_scores.extend(scores)
 
