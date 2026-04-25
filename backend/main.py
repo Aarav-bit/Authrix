@@ -234,10 +234,8 @@ async def analyze_video(
     file: UploadFile = File(...),
     x_api_key: Optional[str] = Header(None, alias="X-API-Key")
 ):
-    """
-    Analyze an uploaded video for deepfake content.
-    Requires API key for usage tracking and tier limits.
-    """
+    """Analyze an uploaded video for deepfake content."""
+    import asyncio
     # Check API key (allow localhost without key for development)
     if x_api_key:
         key_data = validate_api_key(x_api_key)
@@ -295,20 +293,30 @@ async def analyze_video(
             logger.info(f"File is {suffix} — no conversion needed")
 
         logger.info(f"Calling authenticator.analyze({analyze_path})")
-        # Use fast mode only for short extension captures (< 30s), full mode for uploaded files
-        video_meta = None
+        # Detect duration for fast_mode
         try:
-            import cv2
-            cap = cv2.VideoCapture(str(analyze_path))
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            total = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-            cap.release()
-            duration = total / fps if fps > 0 else 999
+            import cv2 as _cv2
+            _cap = _cv2.VideoCapture(str(analyze_path))
+            _fps = _cap.get(_cv2.CAP_PROP_FPS)
+            _tot = _cap.get(_cv2.CAP_PROP_FRAME_COUNT)
+            _cap.release()
+            duration = _tot / _fps if _fps > 0 else 999
         except Exception:
             duration = 999
-        fast = duration < 30  # extension captures are ~8s; uploaded files are longer
+        fast = duration < 30
         logger.info(f"Video duration: {duration:.1f}s → fast_mode={fast}")
-        result = authenticator.analyze(str(analyze_path), fast_mode=fast)
+
+        # Run with 120s timeout — never hang forever
+        import asyncio, concurrent.futures as _cf
+        loop = asyncio.get_event_loop()
+        with _cf.ThreadPoolExecutor(max_workers=1) as pool:
+            try:
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(pool, lambda: authenticator.analyze(str(analyze_path), fast_mode=fast)),
+                    timeout=120.0
+                )
+            except asyncio.TimeoutError:
+                raise HTTPException(status_code=504, detail="Analysis timed out after 120s. Try a shorter video.")
         
         # Increment usage counter if API key provided
         if x_api_key:

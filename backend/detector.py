@@ -481,8 +481,7 @@ class DecisionAgent:
 
     def _batch_predict(self, face_crops: list[np.ndarray]) -> list[float]:
         """
-        True batched inference — all crops in ONE forward pass per model.
-        Float16 + batching = ~4× faster than original per-crop float32.
+        Micro-batched inference — process 8 crops at a time to avoid OOM on CPU.
         Early exit: skip model 2 if model 1 is already very confident.
         """
         if not face_crops:
@@ -491,51 +490,53 @@ class DecisionAgent:
         from PIL import Image
         import torch
 
-        # Convert all crops to PIL once
+        MICRO_BATCH = 8  # safe for 2GB RAM CPU inference
+
         pil_imgs = [
             Image.fromarray(cv2.cvtColor(c, cv2.COLOR_BGR2RGB))
             for c in face_crops
         ]
 
-        model1_scores = None
         all_model_scores = []
 
         for model_idx, (proc, model, fake_idx) in enumerate(self.models):
             try:
-                # Batch process all images at once
-                inputs = proc(images=pil_imgs, return_tensors="pt")
+                model_scores = []
+                # Process in micro-batches
+                for i in range(0, len(pil_imgs), MICRO_BATCH):
+                    batch = pil_imgs[i:i + MICRO_BATCH]
+                    inputs = proc(images=batch, return_tensors="pt")
 
-                # Convert to float16 if model is float16
-                if next(model.parameters()).dtype == torch.float16:
-                    inputs = {
-                        k: v.half() if v.dtype == torch.float32 else v
-                        for k, v in inputs.items()
-                    }
+                    # Match model dtype
+                    model_dtype = next(model.parameters()).dtype
+                    if model_dtype == torch.float16:
+                        inputs = {
+                            k: v.half() if v.dtype == torch.float32 else v
+                            for k, v in inputs.items()
+                        }
 
-                with torch.no_grad():
-                    logits = model(**inputs).logits          # [N, classes]
-                    probs  = torch.softmax(logits, dim=-1)   # [N, classes]
-                    scores = probs[:, fake_idx].tolist()     # [N]
+                    with torch.no_grad():
+                        logits = model(**inputs).logits
+                        probs  = torch.softmax(logits.float(), dim=-1)
+                        scores = probs[:, fake_idx].tolist()
+                    model_scores.extend(scores)
 
-                all_model_scores.append(scores)
+                all_model_scores.append(model_scores)
 
-                # Early exit: if model 1 is very confident on ALL crops, skip model 2
+                # Early exit: model 1 very confident → skip model 2
                 if model_idx == 0:
-                    model1_scores = scores
-                    avg = sum(scores) / len(scores)
+                    avg = sum(model_scores) / len(model_scores)
                     if avg > 0.88 or avg < 0.12:
-                        logger.info(f"Early exit: model1 avg={avg:.3f}, skipping model2")
+                        logger.info("Early exit: model1 avg=%.3f, skipping model2", avg)
                         break
 
             except Exception as e:
-                logger.warning(f"Batch inference error model {model_idx}: {e}")
-                # Fallback to heuristic for this model
+                logger.warning("Batch inference error model %d: %s", model_idx, e)
                 all_model_scores.append([self._heuristic_predict(c) for c in face_crops])
 
         if not all_model_scores:
             return [self._heuristic_predict(c) for c in face_crops]
 
-        # Ensemble: weighted average across models per crop
         n = len(face_crops)
         if len(all_model_scores) == 1:
             return all_model_scores[0]
