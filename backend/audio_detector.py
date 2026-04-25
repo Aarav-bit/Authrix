@@ -45,9 +45,15 @@ class AudioExtractorAgent:
                 clip.close()
                 return None, 0
 
+            # Cap at 30s — enough for detection, avoids slow extraction on long videos
+            MAX_AUDIO_SEC = 30
+            audio_clip = clip.audio
+            if clip.duration > MAX_AUDIO_SEC:
+                audio_clip = clip.audio.subclipped(0, MAX_AUDIO_SEC)
+
             # Write to temp WAV
             tmp_wav = tempfile.mktemp(suffix=".wav")
-            clip.audio.write_audiofile(
+            audio_clip.write_audiofile(
                 tmp_wav,
                 fps=self.TARGET_SR,
                 nbytes=2,
@@ -276,6 +282,9 @@ class AudioDecisionAgent:
 
         if not chunks:
             return 0.5
+
+        # Cap at 3 chunks max — Wav2Vec2 is slow on CPU, 30s of audio is enough
+        chunks = chunks[:3]
 
         fake_probs = []
         for chunk in chunks:

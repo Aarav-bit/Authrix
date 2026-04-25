@@ -968,7 +968,10 @@ class DeepfakeAuthenticator:
             face_crops_per_frame = face_future.result()
             if audio_future:
                 try:
-                    audio_result = audio_future.result(timeout=30)
+                    # Hard 20s timeout — never block the whole pipeline for audio
+                    audio_result = audio_future.result(timeout=20)
+                except concurrent.futures.TimeoutError:
+                    logger.warning("Audio analysis timed out after 20s — skipping")
                 except Exception as e:
                     logger.warning(f"Audio analysis failed: {e}")
 
