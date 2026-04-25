@@ -1,552 +1,377 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Deepfake Authenticator</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --neon:    #00ff88;
-      --neon-dim:#00cc6a;
-      --red:     #ff4444;
-      --red-dim: #cc2222;
-      --bg:      #080810;
-      --card:    #0f0f1a;
-      --card2:   #13131f;
-      --border:  #1e1e30;
-      --text:    #e2e8f0;
-      --muted:   #64748b;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background: var(--bg);
-      font-family: 'JetBrains Mono', monospace;
-      color: var(--text);
-      min-height: 100vh;
-      background-image:
-        radial-gradient(ellipse 80% 50% at 50% -20%, #00ff8808 0%, transparent 60%),
-        linear-gradient(var(--border) 1px, transparent 1px),
-        linear-gradient(90deg, var(--border) 1px, transparent 1px);
-      background-size: 100% 100%, 44px 44px, 44px 44px;
-    }
-
-    /* ── Scrollbar ── */
-    ::-webkit-scrollbar { width: 4px; height: 4px; }
-    ::-webkit-scrollbar-track { background: var(--bg); }
-    ::-webkit-scrollbar-thumb { background: #00ff8833; border-radius: 4px; }
-
-    /* ── Utilities ── */
-    .neon  { color: var(--neon); text-shadow: 0 0 12px #00ff8855; }
-    .red   { color: var(--red);  text-shadow: 0 0 12px #ff444455; }
-    .hidden { display: none !important; }
-
-    /* ── Scanner ── */
-    .scanner {
-      position: fixed; inset: 0; pointer-events: none; z-index: 100;
-      background: linear-gradient(to bottom,
-        transparent 0%, transparent 49.9%,
-        #00ff8806 50%, transparent 50.1%);
-      background-size: 100% 4px;
-      animation: scanMove 8s linear infinite;
-    }
-    @keyframes scanMove {
-      0%   { background-position: 0 0; }
-      100% { background-position: 0 100vh; }
-    }
-
-    /* ── Header ── */
-    .header {
-      position: sticky; top: 0; z-index: 50;
-      background: #080810ee;
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
-    }
-
-    /* ── Cards ── */
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-    }
-    .card-inner {
-      background: var(--card2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-    }
-
-    /* ── Upload zone ── */
-    #dropZone {
-      border: 2px dashed #00ff8830;
-      border-radius: 12px;
-      cursor: pointer;
-      transition: all .25s ease;
-      min-height: 160px;
-      display: flex; align-items: center; justify-content: center;
-    }
-    #dropZone:hover, #dropZone.drag-over {
-      border-color: var(--neon);
-      background: #00ff8806;
-      box-shadow: 0 0 40px #00ff8812, inset 0 0 40px #00ff8806;
-    }
-
-    /* ── Analyze button ── */
-    #analyzeBtn {
-      background: transparent;
-      border: 1px solid #00ff8830;
-      color: #00ff8855;
-      border-radius: 8px;
-      padding: 12px 36px;
-      font-family: inherit;
-      font-weight: 700;
-      font-size: 13px;
-      letter-spacing: .15em;
-      cursor: not-allowed;
-      transition: all .25s ease;
-    }
-    #analyzeBtn.active {
-      border-color: var(--neon);
-      color: var(--neon);
-      cursor: pointer;
-      box-shadow: 0 0 20px #00ff8820;
-    }
-    #analyzeBtn.active:hover {
-      background: #00ff8810;
-      box-shadow: 0 0 30px #00ff8835;
-      transform: translateY(-1px);
-    }
-    #analyzeBtn:disabled { opacity: .45; cursor: not-allowed; transform: none !important; }
-
-    /* ── Progress bar ── */
-    .prog-track {
-      height: 3px; background: var(--border); border-radius: 99px; overflow: hidden;
-    }
-    .prog-fill {
-      height: 100%; border-radius: 99px;
-      background: linear-gradient(90deg, var(--neon), var(--neon-dim));
-      box-shadow: 0 0 8px var(--neon);
-      transition: width .4s ease;
-    }
-
-    /* ── Verdict card ── */
-    #verdictCard {
-      border-radius: 14px;
-      border: 2px solid var(--border);
-      background: var(--card);
-      transition: border-color .5s, box-shadow .5s;
-    }
-    #verdictCard.fake {
-      border-color: var(--red);
-      box-shadow: 0 0 50px #ff444418, inset 0 0 60px #ff44440a;
-    }
-    #verdictCard.real {
-      border-color: var(--neon);
-      box-shadow: 0 0 50px #00ff8818, inset 0 0 60px #00ff880a;
-    }
-
-    /* ── Verdict badge ── */
-    .verdict-badge {
-      width: 96px; height: 96px; border-radius: 50%;
-      border: 2px solid var(--border);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 2.5rem;
-      transition: all .5s;
-    }
-    .verdict-badge.fake {
-      border-color: var(--red);
-      box-shadow: 0 0 30px #ff444440;
-      animation: pulseFake 2s ease-in-out infinite;
-    }
-    .verdict-badge.real {
-      border-color: var(--neon);
-      box-shadow: 0 0 30px #00ff8840;
-      animation: pulseReal 2s ease-in-out infinite;
-    }
-    @keyframes pulseFake {
-      0%,100% { box-shadow: 0 0 20px #ff444430; }
-      50%      { box-shadow: 0 0 45px #ff444460; }
-    }
-    @keyframes pulseReal {
-      0%,100% { box-shadow: 0 0 20px #00ff8830; }
-      50%      { box-shadow: 0 0 45px #00ff8860; }
-    }
-
-    /* ── Confidence bar ── */
-    .conf-track {
-      height: 10px; background: var(--border); border-radius: 99px; overflow: hidden;
-    }
-    .conf-fill {
-      height: 100%; border-radius: 99px;
-      transition: width 1.2s cubic-bezier(.22,1,.36,1);
-    }
-    .conf-fill.fake {
-      background: linear-gradient(90deg, #ff2222, #ff6666);
-      box-shadow: 0 0 12px #ff444466;
-    }
-    .conf-fill.real {
-      background: linear-gradient(90deg, var(--neon), var(--neon-dim));
-      box-shadow: 0 0 12px #00ff8866;
-    }
-
-    /* ── Risk meter ── */
-    .risk-meter {
-      position: relative; height: 8px; border-radius: 99px; overflow: hidden;
-      background: linear-gradient(90deg, #00ff88, #ffcc00, #ff4444);
-    }
-    .risk-needle {
-      position: absolute; top: -4px;
-      width: 3px; height: 16px; border-radius: 2px;
-      background: white;
-      box-shadow: 0 0 6px white;
-      transition: left 1.2s cubic-bezier(.22,1,.36,1);
-      transform: translateX(-50%);
-    }
-
-    /* ── Insight items ── */
-    .insight-item {
-      display: flex; align-items: flex-start; gap: 10px;
-      padding: 10px 12px; border-radius: 8px;
-      background: var(--card2);
-      border: 1px solid var(--border);
-      font-size: 12px; line-height: 1.5; color: #94a3b8;
-      animation: slideIn .3s ease both;
-    }
-    .insight-item .dot {
-      flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; margin-top: 5px;
-    }
-    @keyframes slideIn {
-      from { opacity:0; transform: translateX(-8px); }
-      to   { opacity:1; transform: none; }
-    }
-
-    /* ── Meta rows ── */
-    .meta-row {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 7px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 12px;
-    }
-    .meta-row:last-child { border-bottom: none; }
-    .meta-key { color: var(--muted); letter-spacing: .05em; }
-    .meta-val { color: var(--text); font-weight: 600; }
-
-    /* ── Timeline ── */
-    #timelineChart {
-      display: flex; align-items: flex-end; gap: 3px;
-      height: 80px; overflow-x: auto; padding-bottom: 2px;
-      position: relative;
-    }
-    .t-bar {
-      flex-shrink: 0; width: 10px; border-radius: 3px 3px 0 0;
-      transition: opacity .3s, transform .2s;
-      cursor: pointer;
-      position: relative;
-    }
-    .t-bar:hover { transform: scaleY(1.08); filter: brightness(1.3); }
-    .t-bar .tooltip {
-      display: none; position: absolute; bottom: calc(100% + 6px); left: 50%;
-      transform: translateX(-50%);
-      background: #1e1e30; border: 1px solid var(--border);
-      color: var(--text); font-size: 10px; padding: 4px 7px; border-radius: 5px;
-      white-space: nowrap; z-index: 10; pointer-events: none;
-    }
-    .t-bar:hover .tooltip { display: block; }
-    .threshold-line {
-      position: absolute; left: 0; right: 0; height: 1px;
-      background: #facc1555; pointer-events: none;
-    }
-
-    /* ── Agent steps ── */
-    .agent-card {
-      border-radius: 10px; padding: 12px; text-align: center;
-      background: var(--card2); border: 1px solid var(--border);
-      transition: border-color .3s, background .3s, box-shadow .3s;
-    }
-    .agent-card.active {
-      border-color: #00ff8844;
-      background: #00ff8808;
-      box-shadow: 0 0 20px #00ff8810;
-    }
-    .agent-card .a-status { font-size: 10px; color: var(--muted); margin-top: 4px; }
-    .agent-card.active .a-status { color: var(--neon); }
-
-    /* ── Fade/slide animations ── */
-    .fade-up {
-      animation: fadeUp .45s ease both;
-    }
-    @keyframes fadeUp {
-      from { opacity:0; transform: translateY(16px); }
-      to   { opacity:1; transform: none; }
-    }
-
-    /* ── Section label ── */
-    .sec-label {
-      font-size: 10px; font-weight: 700; letter-spacing: .12em;
-      color: var(--muted); display: flex; align-items: center; gap: 6px;
-    }
-    .sec-label::before {
-      content: ''; display: inline-block;
-      width: 6px; height: 6px; border-radius: 50%;
-      background: var(--neon); box-shadow: 0 0 6px var(--neon);
-    }
-
-    /* ── Glow badge ── */
-    #modelBadge {
-      font-size: 10px; padding: 4px 12px; border-radius: 99px;
-      border: 1px solid var(--border); color: var(--muted);
-      letter-spacing: .08em; transition: all .3s;
-    }
-    #modelBadge.ready {
-      border-color: #00ff8844; color: #00ff88aa;
-      box-shadow: 0 0 10px #00ff8815;
-    }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Deepfake Authenticator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<style>
+:root{--g:#00ff88;--r:#ff3355;--w:#ffaa00;--bg:#050508;--card:rgba(255,255,255,0.04);--border:rgba(0,255,136,0.18);--muted:#5a6a7a;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);font-family:'Space Grotesk',sans-serif;color:#e2e8f0;min-height:100vh;overflow-x:hidden;}
+code,pre,.mono{font-family:'JetBrains Mono',monospace;}
+::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:var(--bg);} ::-webkit-scrollbar-thumb{background:rgba(0,255,136,0.25);border-radius:4px;}
+.hidden{display:none!important;}
+</style>
 </head>
 <body>
 
-<div class="scanner"></div>
+<style>
+/* ── Particle Canvas ── */
+#particles{position:fixed;inset:0;z-index:0;pointer-events:none;}
+/* ── Grid overlay ── */
+.grid-bg{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(0,255,136,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,0.03) 1px,transparent 1px);
+  background-size:60px 60px;}
+/* ── Glass ── */
+.glass{background:var(--card);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.5);}
+.glass-sm{background:rgba(255,255,255,0.03);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.07);border-radius:12px;}
+/* ── Glow borders ── */
+.glow-green{box-shadow:0 0 20px rgba(0,255,136,0.25),inset 0 0 20px rgba(0,255,136,0.04);}
+.glow-red{box-shadow:0 0 20px rgba(255,51,85,0.25),inset 0 0 20px rgba(255,51,85,0.04);}
+/* ── Header ── */
+header{position:sticky;top:0;z-index:50;background:rgba(5,5,8,0.85);backdrop-filter:blur(24px);border-bottom:1px solid rgba(0,255,136,0.1);}
+/* ── Eye SVG animation ── */
+@keyframes scanPulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.5;transform:scale(1.15);}}
+@keyframes eyeScan{0%{stroke-dashoffset:100;}100%{stroke-dashoffset:0;}}
+.eye-scan{animation:scanPulse 2.5s ease-in-out infinite;}
+/* ── Status dot ── */
+@keyframes statusBlink{0%,100%{opacity:1;box-shadow:0 0 6px var(--g);}50%{opacity:0.4;box-shadow:none;}}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--g);animation:statusBlink 2s ease-in-out infinite;}
+/* ── Drop zone border animation ── */
+@keyframes borderDash{to{stroke-dashoffset:-20;}}
+#dropZone{border:2px dashed rgba(0,255,136,0.25);border-radius:16px;cursor:pointer;min-height:200px;display:flex;align-items:center;justify-content:center;transition:all 0.35s ease;position:relative;overflow:hidden;}
+#dropZone:hover,#dropZone.drag-over{border-color:var(--g);background:rgba(0,255,136,0.04);box-shadow:0 0 40px rgba(0,255,136,0.2),inset 0 0 30px rgba(0,255,136,0.06);transform:scale(1.01);}
+/* ── Orbit ring ── */
+@keyframes orbitRing{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+.orbit{animation:orbitRing 3s linear infinite;transform-origin:center;}
+/* ── Analyze button ── */
+#analyzeBtn{width:100%;padding:16px;border-radius:12px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;letter-spacing:0.12em;text-transform:uppercase;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:var(--muted);cursor:not-allowed;transition:all 0.3s ease;position:relative;overflow:hidden;}
+#analyzeBtn.active{background:linear-gradient(135deg,#00ff88,#00cc66);color:#050508;border-color:transparent;cursor:pointer;box-shadow:0 0 30px rgba(0,255,136,0.4);}
+#analyzeBtn.active:hover{transform:translateY(-2px) scale(1.01);box-shadow:0 0 50px rgba(0,255,136,0.6);}
+#analyzeBtn.active::after{content:'';position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent);animation:shimmer 2s ease infinite;}
+@keyframes shimmer{to{left:150%;}}
+#analyzeBtn:disabled{opacity:0.45;cursor:not-allowed;transform:none!important;}
+</style>
 
-<!-- ══ HEADER ══════════════════════════════════════════ -->
-<header class="header">
-  <div style="max-width:900px; margin:0 auto; padding:14px 24px; display:flex; align-items:center; justify-content:space-between;">
-    <div style="display:flex; align-items:center; gap:12px;">
-      <div style="width:34px;height:34px;border-radius:8px;border:1px solid #00ff8855;
-                  display:flex;align-items:center;justify-content:center;
-                  box-shadow:0 0 14px #00ff8820;">
-        <svg width="16" height="16" fill="none" stroke="#00ff88" stroke-width="2" viewBox="0 0 24 24">
-          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-          <path d="M11 8v6M8 11h6"/>
+<style>
+/* ── Loading ── */
+@keyframes radarSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+@keyframes radarPulse{0%,100%{opacity:0.8;transform:scale(1);}50%{opacity:0.3;transform:scale(1.05);}}
+.radar-ring{border-radius:50%;border:1px solid rgba(0,255,136,0.2);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);}
+.radar-sweep{position:absolute;top:50%;left:50%;width:50%;height:2px;transform-origin:left center;background:linear-gradient(90deg,transparent,var(--g));animation:radarSpin 2s linear infinite;}
+/* ── Agent cards ── */
+.agent-card{transition:all 0.4s ease;border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:12px 16px;background:rgba(255,255,255,0.02);}
+.agent-card.active{border-color:var(--g);background:rgba(0,255,136,0.06);box-shadow:0 0 20px rgba(0,255,136,0.15);}
+.agent-card.active .agent-dot{background:var(--g);box-shadow:0 0 8px var(--g);}
+.agent-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.15);transition:all 0.4s ease;flex-shrink:0;}
+/* ── Progress bar ── */
+.prog-track{height:4px;background:rgba(255,255,255,0.06);border-radius:99px;overflow:hidden;}
+.prog-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#00aaff,var(--g));box-shadow:0 0 12px var(--g);transition:width 0.5s ease;}
+/* ── Verdict ── */
+@keyframes glitch{0%,100%{text-shadow:0 0 10px var(--r);}20%{text-shadow:-2px 0 #ff0,2px 0 #0ff,0 0 20px var(--r);}40%{text-shadow:2px 0 #ff0,-2px 0 #0ff,0 0 10px var(--r);}60%{text-shadow:0 0 30px var(--r);}}
+.glitch-text{animation:glitch 3s ease-in-out infinite;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px);}to{opacity:1;transform:none;}}
+.fade-up{animation:fadeUp 0.6s cubic-bezier(0.16,1,0.3,1) both;}
+@keyframes slideInLeft{from{opacity:0;transform:translateX(-20px);}to{opacity:1;transform:none;}}
+/* ── Verdict badge ── */
+.verdict-badge{width:110px;height:110px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.8rem;transition:all 0.5s;border:2px solid var(--border);}
+@keyframes pulseFake{0%,100%{box-shadow:0 0 20px rgba(255,51,85,0.3);}50%{box-shadow:0 0 50px rgba(255,51,85,0.7);}}
+@keyframes pulseReal{0%,100%{box-shadow:0 0 20px rgba(0,255,136,0.3);}50%{box-shadow:0 0 50px rgba(0,255,136,0.7);}}
+.verdict-badge.fake{border-color:var(--r);animation:pulseFake 2s infinite;}
+.verdict-badge.real{border-color:var(--g);animation:pulseReal 2s infinite;}
+/* ── Confidence arc (CSS semicircle gauge) ── */
+.gauge-wrap{position:relative;width:200px;height:110px;overflow:hidden;margin:0 auto;}
+.gauge-bg{width:200px;height:200px;border-radius:50%;border:12px solid rgba(255,255,255,0.06);position:absolute;top:0;left:0;clip-path:inset(0 0 50% 0);}
+.gauge-fill{width:200px;height:200px;border-radius:50%;border:12px solid transparent;position:absolute;top:0;left:0;clip-path:inset(0 0 50% 0);transition:transform 1.2s cubic-bezier(0.22,1,0.36,1);}
+.gauge-fill.fake{border-color:var(--r);box-shadow:0 0 20px rgba(255,51,85,0.5);}
+.gauge-fill.real{border-color:var(--g);box-shadow:0 0 20px rgba(0,255,136,0.5);}
+/* ── Conf bar ── */
+.conf-track{height:10px;background:rgba(255,255,255,0.05);border-radius:99px;overflow:hidden;border:1px solid rgba(255,255,255,0.05);}
+.conf-fill{height:100%;border-radius:99px;transition:width 1.2s cubic-bezier(0.22,1,0.36,1);}
+.conf-fill.fake{background:linear-gradient(90deg,#880022,var(--r));box-shadow:0 0 15px rgba(255,51,85,0.6);}
+.conf-fill.real{background:linear-gradient(90deg,#00aaff,var(--g));box-shadow:0 0 15px rgba(0,255,136,0.6);}
+/* ── Risk needle ── */
+#riskNeedle{display:inline-block;padding:4px 14px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:0.15em;border:1px solid;transition:all 0.5s;}
+/* ── Insight bullets ── */
+.insight-item{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);font-size:13px;line-height:1.6;color:#a0aec0;animation:slideInLeft 0.4s ease both;}
+.insight-item:hover{background:rgba(255,255,255,0.04);}
+.insight-dot{flex-shrink:0;width:8px;height:8px;border-radius:50%;margin-top:6px;}
+/* ── Timeline bars ── */
+.bar-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:0;position:relative;}
+.bar-outer{width:100%;background:rgba(255,255,255,0.05);border-radius:4px 4px 0 0;overflow:hidden;position:relative;}
+.bar-inner{width:100%;border-radius:4px 4px 0 0;transition:height 0.8s cubic-bezier(0.22,1,0.36,1);}
+.bar-wrap:hover .bar-tooltip{opacity:1;transform:translateY(-4px);}
+.bar-tooltip{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:rgba(10,10,20,0.95);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:4px 8px;font-size:10px;white-space:nowrap;pointer-events:none;opacity:0;transition:all 0.2s ease;z-index:10;font-family:'JetBrains Mono',monospace;}
+/* ── Meta grid ── */
+.meta-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);}
+.meta-row:last-child{border-bottom:none;}
+/* ── Error ── */
+#errorSection{border-color:rgba(255,51,85,0.3)!important;background:rgba(255,51,85,0.04)!important;}
+/* ── Stat pills ── */
+.stat-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:99px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);font-size:12px;font-weight:600;letter-spacing:0.05em;color:#a0aec0;}
+.stat-pill .pip{width:6px;height:6px;border-radius:50%;background:var(--g);box-shadow:0 0 6px var(--g);}
+/* ── Section label ── */
+.sec-label{font-size:10px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#00aaff;display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+.sec-label::before{content:'';display:inline-block;width:3px;height:14px;background:#00aaff;border-radius:2px;box-shadow:0 0 8px #00aaff;}
+/* ── Model badge ── */
+#modelBadge{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:99px;background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.25);font-size:11px;font-weight:600;letter-spacing:0.1em;color:var(--g);}
+</style>
+
+
+<!-- Particle canvas + grid -->
+<canvas id="particles"></canvas>
+<div class="grid-bg"></div>
+
+<!-- ══ HEADER ══ -->
+<header>
+  <div style="max-width:1100px;margin:0 auto;padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <!-- Animated eye logo -->
+      <div class="eye-scan" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+          <ellipse cx="18" cy="18" rx="14" ry="9" stroke="#00ff88" stroke-width="1.5" opacity="0.9"/>
+          <circle cx="18" cy="18" r="5" fill="#00ff88" opacity="0.9"/>
+          <circle cx="18" cy="18" r="2.5" fill="#050508"/>
+          <path d="M4 18 Q18 4 32 18" stroke="#00ff88" stroke-width="0.8" stroke-dasharray="4 3" opacity="0.4">
+            <animateTransform attributeName="transform" type="rotate" from="0 18 18" to="360 18 18" dur="8s" repeatCount="indefinite"/>
+          </path>
         </svg>
       </div>
       <div>
-        <div style="font-size:15px;font-weight:700;letter-spacing:.12em;" class="neon">DEEPFAKE AUTHENTICATOR</div>
-        <div style="font-size:10px;color:var(--muted);letter-spacing:.1em;">AI-POWERED VIDEO FORENSICS</div>
+        <div style="font-size:13px;font-weight:700;letter-spacing:0.18em;color:#fff;">DEEPFAKE AUTHENTICATOR</div>
+        <div style="font-size:9px;letter-spacing:0.25em;color:var(--muted);font-family:'JetBrains Mono',monospace;">AI-POWERED VIDEO FORENSICS</div>
       </div>
     </div>
-    <div id="modelBadge">CONNECTING...</div>
+    <div id="modelBadge">
+      <div class="status-dot"></div>
+      <span>ViT ENSEMBLE</span>
+    </div>
   </div>
 </header>
 
-<!-- ══ MAIN ════════════════════════════════════════════ -->
-<main style="max-width:900px; margin:0 auto; padding:32px 24px; display:flex; flex-direction:column; gap:20px;">
+<!-- ══ MAIN ══ -->
+<div style="position:relative;z-index:1;max-width:860px;margin:0 auto;padding:48px 24px 80px;">
 
-  <!-- Upload card -->
-  <div class="card" style="padding:20px;">
+  <!-- Hero -->
+  <div class="fade-up" style="text-align:center;margin-bottom:48px;animation-delay:0.1s;">
+    <h1 style="font-size:clamp(2rem,5vw,3.5rem);font-weight:700;line-height:1.1;margin-bottom:16px;background:linear-gradient(135deg,#fff 30%,var(--g));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Is This Video Real?</h1>
+    <p style="color:var(--muted);font-size:15px;max-width:480px;margin:0 auto 28px;line-height:1.7;">Advanced AI ensemble detects facial manipulation with 99%+ accuracy using dual Vision Transformer models.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;">
+      <div class="stat-pill"><span class="pip"></span>2 ViT Models</div>
+      <div class="stat-pill"><span class="pip"></span>40 Frame Analysis</div>
+      <div class="stat-pill"><span class="pip"></span>&lt; 15s Detection</div>
+    </div>
+  </div>
+
+  <!-- ══ UPLOAD SECTION ══ -->
+  <section id="uploadSection" class="glass fade-up" style="padding:32px;margin-bottom:24px;animation-delay:0.2s;">
     <div id="dropZone">
-      <div id="uploadPrompt" style="text-align:center; padding:20px;">
-        <div style="width:56px;height:56px;border-radius:50%;border:1px solid #00ff8830;
-                    display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
-          <svg width="24" height="24" fill="none" stroke="#00ff8866" stroke-width="1.5" viewBox="0 0 24 24">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
+      <!-- Upload prompt -->
+      <div id="uploadPrompt" style="text-align:center;padding:40px 24px;">
+        <div style="position:relative;width:80px;height:80px;margin:0 auto 20px;">
+          <div style="position:absolute;inset:0;border-radius:50%;border:1px dashed rgba(0,255,136,0.3);" class="orbit"></div>
+          <div style="position:absolute;inset:8px;border-radius:50%;border:1px solid rgba(0,255,136,0.15);"></div>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+            <svg width="32" height="32" fill="none" stroke="#00ff88" stroke-width="1.5" viewBox="0 0 24 24" opacity="0.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+            </svg>
+          </div>
         </div>
-        <p style="font-size:14px;font-weight:600;color:#cbd5e1;margin-bottom:6px;">Drop video here or click to upload</p>
-        <p style="font-size:11px;color:var(--muted);">MP4 · AVI · MOV · MKV · WebM &nbsp;·&nbsp; Max 100 MB</p>
+        <h3 style="font-size:17px;font-weight:600;color:#fff;margin-bottom:8px;">Drop Video for Forensic Analysis</h3>
+        <p style="font-size:13px;color:var(--muted);">Drag &amp; drop or click to browse</p>
+        <p style="font-size:11px;color:var(--muted);margin-top:12px;opacity:0.6;font-family:'JetBrains Mono',monospace;">MP4 · AVI · MOV · MKV · WebM — Max 100MB</p>
       </div>
-
-      <div id="fileChosen" class="hidden" style="display:flex;align-items:center;gap:14px;padding:20px;">
-        <div style="width:44px;height:44px;border-radius:8px;background:#00ff8810;border:1px solid #00ff8830;
-                    display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <svg width="20" height="20" fill="none" stroke="#00ff88" stroke-width="2" viewBox="0 0 24 24">
-            <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
-            <line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/>
-            <line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/>
-            <line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/>
-            <line x1="17" y1="7" x2="22" y2="7"/>
+      <!-- File chosen state -->
+      <div id="fileChosen" class="hidden" style="width:100%;padding:28px 32px;display:flex;align-items:center;gap:20px;">
+        <div style="width:56px;height:56px;border-radius:12px;background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 20px rgba(0,255,136,0.15);">
+          <svg width="28" height="28" fill="none" stroke="#00ff88" stroke-width="1.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/>
           </svg>
         </div>
         <div style="flex:1;min-width:0;">
-          <p id="chosenName" style="font-size:13px;font-weight:600;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></p>
-          <p id="chosenSize" style="font-size:11px;color:var(--muted);margin-top:2px;"></p>
+          <p id="chosenName" style="font-size:14px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></p>
+          <p id="chosenSize" style="font-size:12px;color:var(--muted);margin-top:4px;font-family:'JetBrains Mono',monospace;"></p>
         </div>
-        <button id="clearBtn" type="button"
-          style="background:none;border:none;color:var(--muted);cursor:pointer;padding:6px;border-radius:6px;transition:color .2s;"
-          onmouseover="this.style.color='#ff4444'" onmouseout="this.style.color='var(--muted)'">
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
+        <button id="clearBtn" style="padding:8px;color:var(--muted);background:none;border:none;cursor:pointer;border-radius:8px;transition:all 0.2s;" onmouseover="this.style.color='#ff3355';this.style.background='rgba(255,51,85,0.1)'" onmouseout="this.style.color='var(--muted)';this.style.background='none'">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
     </div>
-
-    <input type="file" id="fileInput" accept="video/*" style="display:none;" />
-
-    <div style="margin-top:16px;text-align:center;">
-      <button id="analyzeBtn" type="button" disabled onclick="analyzeVideo()">
-        ▶&nbsp;&nbsp;ANALYZE VIDEO
+    <input type="file" id="fileInput" accept="video/*" style="display:none;"/>
+    <div style="margin-top:20px;">
+      <button id="analyzeBtn" disabled>
+        <span id="analyzeBtnText">Analyze Video</span>
       </button>
     </div>
-  </div>
+  </section>
 
-  <!-- Loading -->
-  <div id="loadingSection" class="hidden card fade-up" style="padding:24px;">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-      <div style="width:8px;height:8px;border-radius:50%;background:var(--neon);
-                  box-shadow:0 0 8px var(--neon);animation:ping 1s ease-in-out infinite;"></div>
-      <span id="loadingStatus" class="neon" style="font-size:12px;font-weight:700;letter-spacing:.1em;">INITIALIZING...</span>
+  <!-- ══ LOADING SECTION ══ -->
+  <section id="loadingSection" class="hidden glass fade-up" style="padding:48px 32px;text-align:center;margin-bottom:24px;">
+    <!-- Radar -->
+    <div style="position:relative;width:140px;height:140px;margin:0 auto 36px;">
+      <div class="radar-ring" style="width:140px;height:140px;"></div>
+      <div class="radar-ring" style="width:100px;height:100px;"></div>
+      <div class="radar-ring" style="width:60px;height:60px;"></div>
+      <div class="radar-sweep" style="width:70px;top:50%;left:50%;transform-origin:left center;"></div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;border-radius:50%;background:var(--g);box-shadow:0 0 15px var(--g);"></div>
     </div>
-    <div class="prog-track" style="margin-bottom:20px;">
-      <div id="progressBar" class="prog-fill" style="width:0%;"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
-      <div class="agent-card" id="ag0">
-        <div style="font-size:20px;margin-bottom:4px;">🎬</div>
-        <div style="font-size:10px;color:var(--muted);font-weight:600;">FRAME ANALYZER</div>
-        <div class="a-status">Waiting...</div>
-      </div>
-      <div class="agent-card" id="ag1">
-        <div style="font-size:20px;margin-bottom:4px;">👤</div>
-        <div style="font-size:10px;color:var(--muted);font-weight:600;">FACE DETECTOR</div>
-        <div class="a-status">Waiting...</div>
-      </div>
-      <div class="agent-card" id="ag2">
-        <div style="font-size:20px;margin-bottom:4px;">🧠</div>
-        <div style="font-size:10px;color:var(--muted);font-weight:600;">DECISION AGENT</div>
-        <div class="a-status">Waiting...</div>
-      </div>
-      <div class="agent-card" id="ag3">
-        <div style="font-size:20px;margin-bottom:4px;">📊</div>
-        <div style="font-size:10px;color:var(--muted);font-weight:600;">REPORT GEN</div>
-        <div class="a-status">Waiting...</div>
+    <!-- Status -->
+    <p id="loadingStatus" style="font-size:11px;font-weight:700;letter-spacing:0.2em;color:#00aaff;text-transform:uppercase;margin-bottom:20px;font-family:'JetBrains Mono',monospace;">Initializing sequence...</p>
+    <!-- Progress -->
+    <div style="max-width:400px;margin:0 auto 32px;">
+      <div class="prog-track">
+        <div id="progressBar" style="width:0%;" class="prog-fill"></div>
       </div>
     </div>
-  </div>
-
-  <!-- Result -->
-  <div id="resultSection" class="hidden fade-up" style="display:flex;flex-direction:column;gap:16px;">
-
-    <!-- Verdict -->
-    <div id="verdictCard" style="padding:28px 32px;">
-      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:28px;">
-
-        <!-- Badge + label -->
-        <div style="text-align:center;flex-shrink:0;">
-          <div id="verdictBadge" class="verdict-badge" style="margin:0 auto 10px;">
-            <span id="verdictEmoji"></span>
-          </div>
-          <div id="verdictLabel" style="font-size:28px;font-weight:700;letter-spacing:.15em;"></div>
-          <div style="font-size:10px;color:var(--muted);letter-spacing:.1em;margin-top:3px;">VERDICT</div>
+    <!-- Agent cards -->
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;max-width:500px;margin:0 auto;">
+      <div id="ag0" class="agent-card" style="display:flex;align-items:center;gap:10px;">
+        <div class="agent-dot"></div>
+        <div style="text-align:left;">
+          <div style="font-size:11px;font-weight:600;color:#fff;letter-spacing:0.05em;">Frame Extractor</div>
+          <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">Sampling keyframes</div>
         </div>
+      </div>
+      <div id="ag1" class="agent-card" style="display:flex;align-items:center;gap:10px;">
+        <div class="agent-dot"></div>
+        <div style="text-align:left;">
+          <div style="font-size:11px;font-weight:600;color:#fff;letter-spacing:0.05em;">Face Detector</div>
+          <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">Isolating regions</div>
+        </div>
+      </div>
+      <div id="ag2" class="agent-card" style="display:flex;align-items:center;gap:10px;">
+        <div class="agent-dot"></div>
+        <div style="text-align:left;">
+          <div style="font-size:11px;font-weight:600;color:#fff;letter-spacing:0.05em;">ViT Ensemble</div>
+          <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">Neural inference</div>
+        </div>
+      </div>
+      <div id="ag3" class="agent-card" style="display:flex;align-items:center;gap:10px;">
+        <div class="agent-dot"></div>
+        <div style="text-align:left;">
+          <div style="font-size:11px;font-weight:600;color:#fff;letter-spacing:0.05em;">Report Builder</div>
+          <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">Compiling results</div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-        <!-- Confidence + risk -->
-        <div style="flex:1;min-width:220px;">
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
-            <span style="font-size:11px;color:var(--muted);letter-spacing:.08em;">CONFIDENCE SCORE</span>
-            <span id="confValue" style="font-size:32px;font-weight:700;"></span>
-          </div>
-          <div class="conf-track" style="margin-bottom:18px;">
-            <div id="confBar" class="conf-fill" style="width:0%;"></div>
-          </div>
+  <!-- ══ RESULT SECTION ══ -->
+  <section id="resultSection" class="hidden fade-up" style="display:flex;flex-direction:column;gap:20px;">
 
-          <!-- Risk meter -->
-          <div style="margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:10px;color:var(--muted);letter-spacing:.08em;">RISK LEVEL</span>
-            <span id="riskLabel" style="font-size:10px;font-weight:700;letter-spacing:.08em;"></span>
-          </div>
-          <div class="risk-meter">
-            <div id="riskNeedle" class="risk-needle" style="left:50%;"></div>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-top:4px;">
-            <span style="font-size:9px;color:var(--muted);">LOW</span>
-            <span style="font-size:9px;color:var(--muted);">MEDIUM</span>
-            <span style="font-size:9px;color:var(--muted);">HIGH</span>
-          </div>
+    <!-- Verdict Card -->
+    <div id="verdictCard" class="glass" style="padding:40px;display:flex;flex-wrap:wrap;align-items:center;gap:36px;">
+      <!-- Badge + label -->
+      <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
+        <div id="verdictBadge" class="verdict-badge" style="margin-bottom:14px;background:rgba(5,5,8,0.8);">
+          <span id="verdictEmoji" style="font-size:2.5rem;"></span>
+        </div>
+        <div id="verdictLabel" style="font-size:28px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;"></div>
+        <div style="font-size:9px;color:var(--muted);letter-spacing:0.25em;margin-top:4px;font-family:'JetBrains Mono',monospace;">VERDICT</div>
+      </div>
+      <!-- Confidence + risk -->
+      <div style="flex:1;min-width:220px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;">
+          <span style="font-size:10px;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;">Confidence Score</span>
+          <span id="confValue" style="font-size:36px;font-weight:700;font-family:'JetBrains Mono',monospace;"></span>
+        </div>
+        <div class="conf-track" style="margin-bottom:20px;">
+          <div id="confBar" class="conf-fill" style="width:0%;"></div>
+        </div>
+        <div class="glass-sm" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:10px;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;">Risk Assessment</span>
+          <span id="riskNeedle"></span>
+        </div>
+        <div style="margin-top:12px;text-align:right;">
+          <span id="riskLabel" style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;"></span>
         </div>
       </div>
     </div>
 
     <!-- Insights + Meta -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-
-      <div class="card" style="padding:18px;">
-        <div class="sec-label" style="margin-bottom:14px;">ANALYSIS INSIGHTS</div>
-        <div id="detailsList" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div class="glass" style="padding:24px;">
+        <div class="sec-label">Analysis Insights</div>
+        <div id="detailsList" style="display:flex;flex-direction:column;gap:10px;"></div>
       </div>
-
-      <div class="card" style="padding:18px;">
-        <div class="sec-label" style="margin-bottom:14px;">VIDEO METADATA</div>
-        <div id="metaGrid"></div>
-
-        <!-- Model info -->
-        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
-          <div class="sec-label" style="margin-bottom:10px;">DETECTION ENGINE</div>
-          <div style="font-size:10px;color:var(--muted);line-height:1.8;">
-            <div>🔬 dima806/deepfake_vs_real (99.3% acc)</div>
-            <div>🔬 prithivMLmods/Detector-v2 (92.1% acc)</div>
-            <div style="margin-top:4px;color:#00ff8877;">⚡ Weighted ensemble · ViT architecture</div>
-          </div>
+      <div class="glass" style="padding:24px;display:flex;flex-direction:column;justify-content:space-between;">
+        <div>
+          <div class="sec-label">Video Metadata</div>
+          <div id="metaGrid"></div>
+        </div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;gap:8px;">
+          <div style="width:6px;height:6px;border-radius:50%;background:var(--g);box-shadow:0 0 6px var(--g);"></div>
+          <span style="font-size:10px;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;font-family:'JetBrains Mono',monospace;">Models: ViT Ensemble</span>
         </div>
       </div>
     </div>
 
     <!-- Frame Timeline -->
-    <div class="card" style="padding:18px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-        <div class="sec-label">FRAME-BY-FRAME TIMELINE</div>
-        <div style="display:flex;align-items:center;gap:14px;font-size:10px;color:var(--muted);">
-          <span style="display:flex;align-items:center;gap:5px;">
-            <span style="width:10px;height:10px;border-radius:2px;background:var(--neon);display:inline-block;"></span>REAL
-          </span>
-          <span style="display:flex;align-items:center;gap:5px;">
-            <span style="width:10px;height:10px;border-radius:2px;background:var(--red);display:inline-block;"></span>FAKE
-          </span>
-          <span style="display:flex;align-items:center;gap:5px;">
-            <span style="width:20px;height:1px;background:#facc1566;display:inline-block;"></span>60% THRESHOLD
-          </span>
-        </div>
+    <div class="glass" style="padding:24px;">
+      <div class="sec-label">Frame Analysis Timeline</div>
+      <div id="timelineChart" style="display:flex;align-items:flex-end;gap:3px;height:80px;position:relative;padding-bottom:20px;"></div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px;">
+        <span style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">Frame 0</span>
+        <span style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">Frame 40</span>
       </div>
-      <div id="timelineChart"></div>
     </div>
 
-    <div style="text-align:center;">
-      <button onclick="resetAll()" type="button"
-        style="background:none;border:1px solid var(--border);color:var(--muted);
-               font-family:inherit;font-size:12px;letter-spacing:.1em;padding:10px 24px;
-               border-radius:8px;cursor:pointer;transition:all .2s;"
-        onmouseover="this.style.borderColor='#00ff8844';this.style.color='var(--neon)'"
-        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
-        ↺ &nbsp;ANALYZE ANOTHER VIDEO
+    <!-- Reset -->
+    <div style="text-align:center;margin-top:8px;">
+      <button onclick="resetAll()" style="padding:12px 28px;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);background:none;border:1px solid rgba(255,255,255,0.1);border-radius:10px;cursor:pointer;transition:all 0.3s;font-family:'Space Grotesk',sans-serif;" onmouseover="this.style.color='var(--g)';this.style.borderColor='rgba(0,255,136,0.4)';this.style.background='rgba(0,255,136,0.05)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='rgba(255,255,255,0.1)';this.style.background='none'">
+        ↻ &nbsp;Analyze Another Video
       </button>
     </div>
-  </div>
+  </section>
 
-  <!-- Error -->
-  <div id="errorSection" class="hidden card fade-up"
-       style="padding:20px;border-color:#ff444433;background:#ff44440a;">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-      <span style="font-size:18px;">⚠️</span>
-      <span style="color:var(--red);font-weight:700;font-size:13px;letter-spacing:.08em;">ANALYSIS FAILED</span>
+  <!-- ══ ERROR SECTION ══ -->
+  <section id="errorSection" class="hidden glass fade-up" style="padding:28px 32px;margin-bottom:24px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+      <svg width="22" height="22" fill="none" stroke="#ff3355" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      <span style="font-size:12px;font-weight:700;letter-spacing:0.2em;color:#ff3355;text-transform:uppercase;font-family:'JetBrains Mono',monospace;">Analysis Failed</span>
     </div>
-    <p id="errorMsg" style="font-size:12px;color:var(--muted);line-height:1.6;"></p>
-    <button onclick="resetAll()" type="button"
-      style="margin-top:12px;background:none;border:none;color:var(--muted);
-             font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:.08em;"
-      onmouseover="this.style.color='var(--neon)'" onmouseout="this.style.color='var(--muted)'">
-      ↺ Try again
-    </button>
-  </div>
+    <p id="errorMsg" style="font-size:13px;color:var(--muted);margin-left:34px;line-height:1.6;"></p>
+    <div style="margin-left:34px;margin-top:16px;">
+      <button onclick="resetAll()" style="font-size:11px;color:rgba(255,255,255,0.4);background:none;border:none;cursor:pointer;letter-spacing:0.15em;text-transform:uppercase;font-family:'Space Grotesk',sans-serif;transition:color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.4)'">↻ Try Again</button>
+    </div>
+  </section>
 
-</main>
+</div><!-- /main -->
 
-<footer style="border-top:1px solid var(--border);padding:20px;text-align:center;
-               font-size:10px;color:#334155;letter-spacing:.12em;margin-top:20px;">
-  DEEPFAKE AUTHENTICATOR &nbsp;·&nbsp; MEDIAPIPE + ENSEMBLE ViT &nbsp;·&nbsp; LOCAL INFERENCE
+<footer style="position:relative;z-index:1;text-align:center;padding:24px;font-size:10px;color:rgba(90,106,122,0.5);letter-spacing:0.2em;text-transform:uppercase;font-family:'JetBrains Mono',monospace;">
+  Deepfake Authenticator &nbsp;·&nbsp; Secure Local Inference &nbsp;·&nbsp; ViT Ensemble v2
 </footer>
 
-<style>
-  @keyframes ping {
-    0%,100% { transform:scale(1); opacity:1; }
-    50%      { transform:scale(1.5); opacity:.5; }
+<script>
+// ── Particle background ──────────────────────────────────────────────────────
+(function(){
+  const c=document.getElementById('particles');
+  const ctx=c.getContext('2d');
+  let W,H,pts=[];
+  function resize(){W=c.width=window.innerWidth;H=c.height=window.innerHeight;}
+  resize();window.addEventListener('resize',resize);
+  for(let i=0;i<60;i++)pts.push({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,r:Math.random()*1.5+0.5,a:Math.random()});
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    pts.forEach(p=>{
+      p.x+=p.vx;p.y+=p.vy;
+      if(p.x<0||p.x>W)p.vx*=-1;
+      if(p.y<0||p.y>H)p.vy*=-1;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(0,255,136,${0.15+p.a*0.2})`;ctx.fill();
+    });
+    // draw connections
+    for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){
+      const dx=pts[i].x-pts[j].x,dy=pts[i].y-pts[j].y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<120){ctx.beginPath();ctx.moveTo(pts[i].x,pts[i].y);ctx.lineTo(pts[j].x,pts[j].y);ctx.strokeStyle=`rgba(0,255,136,${0.06*(1-d/120)})`;ctx.lineWidth=0.5;ctx.stroke();}
+    }
+    requestAnimationFrame(draw);
   }
-  @media (max-width: 640px) {
-    #verdictCard > div { flex-direction: column !important; }
-    #resultSection > div:nth-child(2) { grid-template-columns: 1fr !important; }
-  }
-</style>
-
+  draw();
+})();
+</script>
 <script src="script.js"></script>
 </body>
 </html>
