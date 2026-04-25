@@ -1,57 +1,43 @@
 @import "tailwindcss";
 
-:root {
-  --primary: #00ff9c;
-  --primary-dim: #00cc7d;
-  --secondary: #00e5ff; /* soft cyan */
-  --red: #ff4444;
-  --red-dim: #cc2222;
-  --bg-dark: #040906;
-  --bg-gradient: radial-gradient(circle at top center, #001a11 0%, #040906 100%);
-  --card-bg: rgba(10, 20, 15, 0.6);
-  --card-bg-inner: rgba(15, 25, 20, 0.8);
-  --border: rgba(0, 255, 156, 0.15);
-  --border-hover: rgba(0, 255, 156, 0.4);
-  --text: #e2e8f0;
-  --muted: #849ca3;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  background: var(--bg-dark);
-  background-image: var(--bg-gradient);
-  font-family: 'Inter', sans-serif;
-  color: var(--text);
-  min-height: 100vh;
-  overflow-x: hidden;
-  letter-spacing: 0.02em;
+  background: #050508;
+  color: #e2e8f0;
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ── Scrollbar ── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--bg-dark); }
-::-webkit-scrollbar-thumb { background: rgba(0, 255, 156, 0.3); border-radius: 6px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #050508; }
+::-webkit-scrollbar-thumb { background: rgba(0,255,136,0.2); border-radius: 4px; }
 
-/* ── Scanner Background ── */
-.scanner {
-  position: fixed; inset: 0; pointer-events: none; z-index: 100;
-  background: linear-gradient(to bottom,
-    transparent 0%, transparent 49.9%,
-    rgba(0, 255, 156, 0.05) 50%, transparent 50.1%);
-  background-size: 100% 4px;
-  animation: scanMove 8s linear infinite;
-}
-@keyframes scanMove {
-  0%   { background-position: 0 0; }
-  100% { background-position: 0 100vh; }
+/* Animated grid background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(0,255,136,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,0.025) 1px, transparent 1px);
+  background-size: 60px 60px;
 }
 
-.text-glow {
-  color: var(--primary);
-  text-shadow: 0 0 10px rgba(0, 255, 156, 0.6);
+/* Radial glow at top */
+body::after {
+  content: '';
+  position: fixed;
+  top: -200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 800px;
+  height: 600px;
+  background: radial-gradient(ellipse, rgba(0,255,136,0.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
 }
 
-.fade-up { animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: none; }
-}
+main, header, footer { position: relative; z-index: 1; }

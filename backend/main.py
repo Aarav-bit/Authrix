@@ -135,23 +135,43 @@ async def analyze_video(file: UploadFile = File(...)):
 
 
 # ── Serve frontend ────────────────────────────
-frontend_path = Path(__file__).parent.parent / "frontend-vanilla"
+# Prefer built React dist, fall back to vanilla HTML
+_react_dist   = Path(__file__).parent.parent / "frontend-dist"
+_vanilla_dir  = Path(__file__).parent.parent / "frontend-vanilla"
 
-if frontend_path.exists():
+if _react_dist.exists():
+    # Serve React SPA
+    app.mount("/assets", StaticFiles(directory=str(_react_dist / "assets")), name="assets")
+
+    @app.get("/")
+    async def serve_index():
+        return FileResponse(
+            str(_react_dist / "index.html"),
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+        )
+
+    # Catch-all for React Router (SPA fallback)
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str):
+        index = _react_dist / "index.html"
+        if index.exists():
+            return FileResponse(str(index))
+        return {"detail": "Not found"}
+
+elif _vanilla_dir.exists():
+    # Fallback: vanilla HTML
     @app.get("/script.js")
     async def serve_script():
-        from fastapi.responses import FileResponse
         return FileResponse(
-            str(frontend_path / "script.js"),
+            str(_vanilla_dir / "script.js"),
             media_type="application/javascript",
             headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
         )
 
     @app.get("/")
     async def serve_index():
-        from fastapi.responses import FileResponse
         return FileResponse(
-            str(frontend_path / "index.html"),
+            str(_vanilla_dir / "index.html"),
             headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
         )
 
