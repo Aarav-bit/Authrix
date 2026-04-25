@@ -2,7 +2,7 @@
  * Authrix Extension — Popup Script v3
  */
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = 'https://aarav13-authrix.hf.space';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const online = await checkHealth();

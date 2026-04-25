@@ -123,7 +123,7 @@ function showOverlay(mode = 'capture', url = '') {
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 
   document.getElementById('authrix-open-app').onclick = () =>
-    window.open('http://localhost:8000', '_blank');
+    window.open('https://aarav13-authrix.hf.space', '_blank');
 
   document.getElementById('authrix-reanalyze').onclick = () =>
     chrome.runtime.sendMessage({ type: 'START_CAPTURE' });
@@ -249,7 +249,7 @@ function showError(message) {
   }
   if (errHint) {
     errHint.textContent = isOffline
-      ? 'Run: cd backend && python -m uvicorn main:app --port 8000'
+      ? 'Visit https://aarav13-authrix.hf.space to check server status'
       : 'Make sure a video is playing before capturing.';
   }
   showState('error');
