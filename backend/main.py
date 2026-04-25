@@ -295,7 +295,20 @@ async def analyze_video(
             logger.info(f"File is {suffix} — no conversion needed")
 
         logger.info(f"Calling authenticator.analyze({analyze_path})")
-        result = authenticator.analyze(str(analyze_path), fast_mode=True)  # fast mode for extension uploads
+        # Use fast mode only for short extension captures (< 30s), full mode for uploaded files
+        video_meta = None
+        try:
+            import cv2
+            cap = cv2.VideoCapture(str(analyze_path))
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            total = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            cap.release()
+            duration = total / fps if fps > 0 else 999
+        except Exception:
+            duration = 999
+        fast = duration < 30  # extension captures are ~8s; uploaded files are longer
+        logger.info(f"Video duration: {duration:.1f}s → fast_mode={fast}")
+        result = authenticator.analyze(str(analyze_path), fast_mode=fast)
         
         # Increment usage counter if API key provided
         if x_api_key:

@@ -380,7 +380,7 @@ class DecisionAgent:
 # Agent 4: Report Generator Agent
 # ─────────────────────────────────────────────
 class ReportGeneratorAgent:
-    BASE_THRESHOLD = 0.54
+    BASE_THRESHOLD = 0.58  # Restored — 0.54 caused false positives
 
     def generate(self, analysis: dict, metadata: dict, audio: dict | None = None) -> dict:
         prob        = analysis["overall_fake_probability"]
