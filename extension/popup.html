@@ -13,6 +13,7 @@
       font-size: 13px;
     }
 
+    /* ── Header ── */
     .header {
       padding: 14px 16px 12px;
       border-bottom: 1px solid rgba(0,255,156,0.12);
@@ -43,14 +44,19 @@
       border-color: rgba(255,68,102,0.3);
       color: #ff4466; background: rgba(255,68,102,0.08);
     }
+    .status-badge.loading {
+      border-color: rgba(255,170,0,0.3);
+      color: #ffaa00; background: rgba(255,170,0,0.08);
+    }
 
-    .body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    /* ── Body ── */
+    .body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
 
     /* Page info */
     .page-card {
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 8px; padding: 10px 12px;
+      border-radius: 8px; padding: 9px 12px;
       display: flex; align-items: center; gap: 10px;
     }
     .page-icon { font-size: 18px; flex-shrink: 0; }
@@ -62,7 +68,7 @@
 
     /* Main capture button */
     .btn-capture {
-      width: 100%; padding: 14px;
+      width: 100%; padding: 13px;
       background: linear-gradient(135deg, #00ff9c, #00cc6a);
       color: #002110; border: none; border-radius: 10px;
       font-size: 13px; font-weight: 700; letter-spacing: 0.08em;
@@ -71,25 +77,61 @@
       display: flex; align-items: center; justify-content: center; gap: 8px;
     }
     .btn-capture:hover {
-      transform: translateY(-2px);
+      transform: translateY(-1px);
       box-shadow: 0 0 36px rgba(0,255,156,0.5);
     }
     .btn-capture:active { transform: scale(0.98); }
+    .btn-capture:disabled {
+      opacity: 0.4; cursor: not-allowed; transform: none;
+      box-shadow: none;
+    }
+
+    /* Divider */
+    .divider {
+      display: flex; align-items: center; gap: 8px;
+      color: rgba(255,255,255,0.2); font-size: 10px; letter-spacing: 0.1em;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px;
+      background: rgba(255,255,255,0.07);
+    }
+
+    /* URL input */
+    .url-row { display: flex; gap: 6px; }
+    .url-input {
+      flex: 1; padding: 8px 10px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 7px; color: #dae5da;
+      font-size: 11px; font-family: monospace;
+      outline: none; transition: border-color 0.2s;
+    }
+    .url-input::placeholder { color: rgba(255,255,255,0.2); }
+    .url-input:focus { border-color: rgba(0,255,156,0.4); }
+    .btn-url {
+      padding: 8px 12px;
+      background: rgba(0,255,156,0.1);
+      border: 1px solid rgba(0,255,156,0.25);
+      border-radius: 7px; color: #00ff9c;
+      font-size: 11px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; white-space: nowrap;
+    }
+    .btn-url:hover { background: rgba(0,255,156,0.18); }
+    .btn-url:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* How it works */
     .how-it-works {
       background: rgba(255,255,255,0.02);
       border: 1px solid rgba(255,255,255,0.05);
-      border-radius: 8px; padding: 10px 12px;
+      border-radius: 8px; padding: 9px 12px;
     }
     .how-label {
       font-size: 9px; font-weight: 700; letter-spacing: 0.15em;
-      color: rgba(255,255,255,0.25); text-transform: uppercase; margin-bottom: 8px;
+      color: rgba(255,255,255,0.25); text-transform: uppercase; margin-bottom: 7px;
     }
     .how-step {
       display: flex; align-items: center; gap: 8px;
-      font-size: 10px; color: rgba(255,255,255,0.4);
-      padding: 3px 0;
+      font-size: 10px; color: rgba(255,255,255,0.4); padding: 2px 0;
     }
     .how-step-num {
       width: 16px; height: 16px; border-radius: 50%;
@@ -102,25 +144,27 @@
     #last-result {
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 8px; padding: 10px 12px;
+      border-radius: 8px; padding: 9px 12px;
       display: none;
     }
     .result-label {
       font-size: 9px; font-weight: 700; letter-spacing: 0.15em;
-      color: rgba(255,255,255,0.25); text-transform: uppercase; margin-bottom: 6px;
+      color: rgba(255,255,255,0.25); text-transform: uppercase; margin-bottom: 5px;
     }
     .result-row { display: flex; align-items: center; justify-content: space-between; }
     .result-verdict { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; }
     .result-conf { font-size: 16px; font-weight: 700; font-family: monospace; }
     .result-bar-wrap {
       height: 3px; background: rgba(255,255,255,0.06);
-      border-radius: 99px; overflow: hidden; margin: 6px 0;
+      border-radius: 99px; overflow: hidden; margin: 5px 0;
     }
     .result-bar { height: 100%; border-radius: 99px; transition: width 0.8s ease; }
-    .result-file { font-size: 9px; color: rgba(255,255,255,0.2); font-family: monospace; }
+    .result-file { font-size: 9px; color: rgba(255,255,255,0.2); font-family: monospace;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+    /* Footer */
     .footer {
-      padding: 10px 16px;
+      padding: 9px 16px;
       border-top: 1px solid rgba(255,255,255,0.05);
       display: flex; align-items: center; justify-content: space-between;
     }
@@ -130,6 +174,20 @@
     }
     .footer-link:hover { color: #00ff9c; }
     .model-info { font-size: 9px; color: rgba(255,255,255,0.2); letter-spacing: 0.06em; }
+
+    /* Offline warning */
+    #offline-warn {
+      display: none;
+      background: rgba(255,68,102,0.06);
+      border: 1px solid rgba(255,68,102,0.2);
+      border-radius: 7px; padding: 8px 10px;
+      font-size: 10px; color: rgba(255,68,102,0.8);
+      line-height: 1.5;
+    }
+    #offline-warn code {
+      display: block; margin-top: 4px;
+      font-family: monospace; color: rgba(255,68,102,0.6);
+    }
   </style>
 </head>
 <body>
@@ -148,22 +206,38 @@
     <div class="page-card">
       <div class="page-icon">🎬</div>
       <div style="flex:1;min-width:0;">
-        <div class="page-title" id="pageTitle">Loading...</div>
+        <div class="page-title" id="pageTitle">Loading…</div>
         <div class="page-sub" id="pageSub">Detecting page</div>
       </div>
     </div>
 
-    <!-- Main button -->
+    <!-- Offline warning -->
+    <div id="offline-warn">
+      Backend not reachable.
+      <code>Visit: aarav13-authrix.hf.space</code>
+    </div>
+
+    <!-- Main capture button -->
     <button class="btn-capture" id="btnCapture">
       <span>⬤</span> Capture &amp; Analyze Video
     </button>
 
+    <!-- Divider -->
+    <div class="divider">OR PASTE URL</div>
+
+    <!-- URL input -->
+    <div class="url-row">
+      <input class="url-input" id="urlInput" type="url"
+             placeholder="https://example.com/video.mp4" />
+      <button class="btn-url" id="btnUrl">Analyze</button>
+    </div>
+
     <!-- How it works -->
     <div class="how-it-works">
       <div class="how-label">How it works</div>
-      <div class="how-step"><div class="how-step-num">1</div>Records 12s of the playing video</div>
+      <div class="how-step"><div class="how-step-num">1</div>Records 20s of the playing video</div>
       <div class="how-step"><div class="how-step-num">2</div>Sends to local AI for analysis</div>
-      <div class="how-step"><div class="how-step-num">3</div>Shows FAKE / REAL verdict</div>
+      <div class="how-step"><div class="how-step-num">3</div>Shows FAKE / REAL verdict on page</div>
     </div>
 
     <!-- Last result -->

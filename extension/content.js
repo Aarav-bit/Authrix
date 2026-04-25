@@ -1,25 +1,37 @@
 /**
- * Authrix Extension — Content Script v2
+ * Authrix Extension — Content Script v3
  *
- * Handles:
- * 1. Overlay UI (loading, result, error)
- * 2. Tab stream recording via MediaRecorder (using streamId from background)
- * 3. Sending recorded chunks back to background for analysis
+ * Responsibilities:
+ *  - Render the overlay UI (loading, result, error states)
+ *  - Relay messages from background to the overlay
+ *  - Recording is handled by offscreen.js (MV3 requirement)
  */
 
-// ── Message listener from background ─────────────────────────────────────────
+// ── Message listener ──────────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+
   if (msg.type === 'SHOW_CAPTURE_OVERLAY') {
-    showOverlay();
+    showOverlay('capture');
     sendResponse({ ok: true });
   }
 
-  if (msg.type === 'RECORD_STREAM') {
-    recordStream(msg.streamId, msg.durationMs);
+  if (msg.type === 'SHOW_URL_ANALYSIS_OVERLAY') {
+    showOverlay('url', msg.url);
     sendResponse({ ok: true });
+  }
+
+  if (msg.type === 'CAPTURE_PROGRESS') {
+    const pct = Math.min(95, Math.round((msg.elapsed / msg.total) * 65));
+    updateLoadingText(`Recording: ${msg.elapsed}s / ${msg.total}s`);
+    if (msg.elapsed === 1) activateStep(0);
+    if (msg.elapsed >= msg.total) {
+      activateStep(1);
+      updateLoadingText('Processing frames — running AI analysis…');
+    }
   }
 
   if (msg.type === 'ANALYSIS_RESULT') {
+    activateStep(3);
     renderResult(msg.result);
   }
 
@@ -28,101 +40,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
-// ── Global trigger (from background context menu) ─────────────────────────────
-window.__authrixCapture = function() {
-  chrome.runtime.sendMessage({ type: 'START_CAPTURE' });
-};
-
-// ── Record stream ─────────────────────────────────────────────────────────────
-async function recordStream(streamId, durationMs) {
-  try {
-    updateLoadingText('Connecting to video stream...');
-
-    // Get the MediaStream from the stream ID
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId } },
-      audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId } },
-    });
-
-    updateLoadingText('Recording video stream...');
-    activateStep(0);
-
-    // Pick best supported format
-    const mimeType = getSupportedMimeType();
-    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2_000_000 });
-    const chunks   = [];
-
-    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-
-    recorder.onstop = async () => {
-      stream.getTracks().forEach(t => t.stop());
-      activateStep(1);
-      updateLoadingText('Processing captured frames...');
-
-      try {
-        // Convert chunks to base64 for message passing
-        const blob    = new Blob(chunks, { type: mimeType });
-        const base64  = await blobToBase64(blob);
-
-        activateStep(2);
-        updateLoadingText('Running AI analysis...');
-
-        // Send to background for backend submission
-        chrome.runtime.sendMessage({
-          type:       'SEND_BLOB_CHUNKS',
-          chunks:     [base64],   // single base64 string of full blob
-          mimeType:   mimeType,
-        });
-      } catch (err) {
-        showError('Failed to process recording: ' + err.message);
-        chrome.runtime.sendMessage({ type: 'ANALYSIS_ERROR_FROM_CONTENT', error: err.message });
-      }
-    };
-
-    recorder.onerror = e => {
-      showError('Recording error: ' + e.error?.message);
-    };
-
-    // Record for durationMs then stop
-    recorder.start(1000); // collect data every 1s
-    setTimeout(() => {
-      if (recorder.state === 'recording') recorder.stop();
-    }, durationMs);
-
-    // Update progress during recording
-    const startTime = Date.now();
-    const progressInterval = setInterval(() => {
-      if (recorder.state !== 'recording') { clearInterval(progressInterval); return; }
-      const elapsed = (Date.now() - startTime) / 1000;
-      const total   = durationMs / 1000;
-      const pct     = Math.min(99, Math.round((elapsed / total) * 60));
-      updateLoadingText(`Recording: ${elapsed.toFixed(0)}s / ${total}s (${pct}% captured)`);
-    }, 500);
-
-  } catch (err) {
-    showError(err.message.includes('Permission')
-      ? 'Tab capture permission denied. Try reloading the page.'
-      : 'Stream capture failed: ' + err.message);
-  }
-}
-
-// ── Overlay UI ────────────────────────────────────────────────────────────────
-function showOverlay() {
+// ── Show overlay ──────────────────────────────────────────────────────────────
+function showOverlay(mode = 'capture', url = '') {
   document.getElementById('authrix-overlay')?.remove();
 
   const overlay = document.createElement('div');
   overlay.id = 'authrix-overlay';
   overlay.innerHTML = `
     <div id="authrix-panel">
+
+      <!-- Header -->
       <div id="authrix-header">
         <div id="authrix-logo">
           <span id="authrix-logo-icon">◉</span>
           <span>AUTHRIX AI</span>
         </div>
-        <button id="authrix-close">✕</button>
+        <button id="authrix-close" title="Close">✕</button>
       </div>
 
-      <!-- Loading -->
+      <!-- Loading state -->
       <div id="authrix-loading">
         <div id="authrix-radar">
           <div class="authrix-ring r1"></div>
@@ -130,17 +66,24 @@ function showOverlay() {
           <div class="authrix-ring r3"></div>
           <div id="authrix-radar-dot"></div>
         </div>
-        <div id="authrix-loading-text">Initializing capture...</div>
+        <div id="authrix-loading-text">
+          ${mode === 'url' ? 'Downloading &amp; analyzing video…' : 'Initializing capture…'}
+        </div>
         <div id="authrix-steps">
-          <div class="authrix-step" id="as0">🎬 Recording tab stream</div>
+          <div class="authrix-step" id="as0">
+            ${mode === 'url' ? '⬇️ Downloading video' : '🎬 Recording tab stream'}
+          </div>
           <div class="authrix-step" id="as1">🖼️ Extracting frames</div>
           <div class="authrix-step" id="as2">🧠 Running AI models</div>
           <div class="authrix-step" id="as3">📊 Generating report</div>
         </div>
-        <div id="authrix-note">Recording ~12 seconds of video for analysis</div>
+        ${mode === 'url'
+          ? `<div id="authrix-note" style="font-family:monospace;font-size:10px;word-break:break-all;">${escHtml(url.slice(0, 80))}${url.length > 80 ? '…' : ''}</div>`
+          : `<div id="authrix-note">Recording ~20 seconds of video for analysis</div>`
+        }
       </div>
 
-      <!-- Result -->
+      <!-- Result state -->
       <div id="authrix-result" style="display:none;">
         <div id="authrix-verdict-row">
           <div id="authrix-badge"></div>
@@ -155,34 +98,44 @@ function showOverlay() {
           <span id="authrix-audio-icon">🎙️</span>
           <span id="authrix-audio-label"></span>
         </div>
+        <div id="authrix-meta"></div>
         <div id="authrix-actions">
           <button id="authrix-reanalyze">↺ Capture Again</button>
           <button id="authrix-open-app">Open Authrix App ↗</button>
         </div>
       </div>
 
-      <!-- Error -->
+      <!-- Error state -->
       <div id="authrix-error" style="display:none;">
         <div id="authrix-error-icon">⚠</div>
         <div id="authrix-error-msg"></div>
         <div id="authrix-error-hint"></div>
         <button id="authrix-retry">↺ Retry</button>
       </div>
+
     </div>
   `;
 
   document.body.appendChild(overlay);
 
+  // Wire up buttons
   document.getElementById('authrix-close').onclick = () => overlay.remove();
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
   document.getElementById('authrix-open-app').onclick = () =>
-    window.open('http://localhost:8000', '_blank');
+    window.open('https://aarav13-authrix.hf.space', '_blank');
+
   document.getElementById('authrix-reanalyze').onclick = () =>
     chrome.runtime.sendMessage({ type: 'START_CAPTURE' });
+
   document.getElementById('authrix-retry').onclick = () =>
     chrome.runtime.sendMessage({ type: 'START_CAPTURE' });
+
+  // Auto-activate first step for URL mode (no recording phase)
+  if (mode === 'url') activateStep(1);
 }
 
+// ── Loading helpers ───────────────────────────────────────────────────────────
 function updateLoadingText(text) {
   const el = document.getElementById('authrix-loading-text');
   if (el) el.textContent = text;
@@ -204,27 +157,30 @@ function showState(state) {
   if (error)   error.style.display   = state === 'error'   ? 'flex'  : 'none';
 }
 
+// ── Render result ─────────────────────────────────────────────────────────────
 function renderResult(data) {
-  activateStep(3);
-
   const isFake = data.result === 'FAKE';
-  const conf   = data.confidence || 0;
+  const conf   = data.confidence ?? 0;
   const color  = isFake ? '#ff4466' : '#00ff9c';
 
+  // Badge
   const badge = document.getElementById('authrix-badge');
   if (badge) {
-    badge.textContent   = isFake ? '⚠' : '✓';
-    badge.style.color   = color;
+    badge.textContent       = isFake ? '⚠' : '✓';
+    badge.style.color       = color;
     badge.style.borderColor = color;
     badge.style.boxShadow   = `0 0 16px ${color}44`;
   }
 
+  // Verdict text
   const vt = document.getElementById('authrix-verdict-text');
   if (vt) { vt.textContent = isFake ? 'DEEPFAKE DETECTED' : 'AUTHENTIC VIDEO'; vt.style.color = color; }
 
+  // Confidence number
   const cv = document.getElementById('authrix-conf');
   if (cv) { cv.textContent = conf + '%'; cv.style.color = color; }
 
+  // Confidence bar
   const bar = document.getElementById('authrix-conf-bar');
   if (bar) {
     bar.style.background = isFake
@@ -234,6 +190,7 @@ function renderResult(data) {
     setTimeout(() => { bar.style.width = conf + '%'; }, 80);
   }
 
+  // Detail bullets (max 3)
   const dl = document.getElementById('authrix-details');
   if (dl) {
     dl.innerHTML = (data.details || []).slice(0, 3).map(d =>
@@ -241,58 +198,68 @@ function renderResult(data) {
     ).join('');
   }
 
+  // Audio row
   const audioRow = document.getElementById('authrix-audio-row');
   if (audioRow && data.audio?.available) {
-    const isAI = data.audio.result === 'AI_VOICE';
+    const isAI      = data.audio.result === 'AI_VOICE';
     const isMismatch = data.audio.result === 'AV_MISMATCH';
-    const aColor = (isAI || isMismatch) ? '#ff4466' : '#00ff9c';
+    const aColor    = (isAI || isMismatch) ? '#ff4466' : '#00ff9c';
     const audioIcon  = document.getElementById('authrix-audio-icon');
     const audioLabel = document.getElementById('authrix-audio-label');
     if (audioIcon)  audioIcon.textContent  = (isAI || isMismatch) ? '🤖' : '🎙️';
     if (audioLabel) {
       audioLabel.textContent = isMismatch
         ? 'AV Mismatch — face-swap detected'
-        : isAI ? `AI Voice (${data.audio.confidence}%)`
-               : `Human Voice (${data.audio.confidence}%)`;
+        : isAI
+          ? `AI Voice (${data.audio.confidence}%)`
+          : `Human Voice (${data.audio.confidence}%)`;
       audioLabel.style.color = aColor;
     }
     audioRow.style.display = 'flex';
   }
 
+  // Metadata row
+  const meta = document.getElementById('authrix-meta');
+  if (meta && data.metadata) {
+    const m = data.metadata;
+    const parts = [];
+    if (m.video_duration_sec) parts.push(`${m.video_duration_sec}s`);
+    if (m.resolution && m.resolution !== '0x0') parts.push(m.resolution);
+    if (m.frames_with_faces != null) parts.push(`${m.frames_with_faces} faces`);
+    if (data.processing_time_sec) parts.push(`${data.processing_time_sec}s analysis`);
+    if (parts.length) {
+      meta.textContent = parts.join(' · ');
+      meta.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.25);margin-bottom:12px;font-family:monospace;';
+    }
+  }
+
   showState('result');
 }
 
+// ── Show error ────────────────────────────────────────────────────────────────
 function showError(message) {
-  const isOffline = message?.includes('fetch') || message?.includes('Failed to fetch');
+  const isOffline = !message || message.includes('fetch') || message.includes('Failed to fetch') || message.includes('ERR_CONNECTION');
   const errMsg  = document.getElementById('authrix-error-msg');
   const errHint = document.getElementById('authrix-error-hint');
-  if (errMsg)  errMsg.textContent  = isOffline ? 'Authrix server is not running' : (message || 'Unknown error');
-  if (errHint) errHint.textContent = isOffline
-    ? 'Run: cd backend && python -m uvicorn main:app --port 8000'
-    : 'Make sure the video is playing before capturing.';
+
+  if (errMsg) {
+    errMsg.textContent = isOffline
+      ? 'Authrix server is not running'
+      : (message || 'Unknown error');
+  }
+  if (errHint) {
+    errHint.textContent = isOffline
+      ? 'Visit https://aarav13-authrix.hf.space to check server status'
+      : 'Make sure a video is playing before capturing.';
+  }
   showState('error');
 }
 
-// ── Utilities ─────────────────────────────────────────────────────────────────
-function getSupportedMimeType() {
-  const types = [
-    'video/webm;codecs=vp9,opus',
-    'video/webm;codecs=vp8,opus',
-    'video/webm',
-    'video/mp4',
-  ];
-  return types.find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm';
-}
-
-function blobToBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload  = () => resolve(reader.result.split(',')[1]);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
-
+// ── Utility ───────────────────────────────────────────────────────────────────
 function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }

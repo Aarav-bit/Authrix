@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AUTHRIX AI - Analysis State</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "inverse-surface": "#dae5da",
+                        "on-error": "#690005",
+                        "surface-tint": "#00e38a",
+                        "error": "#ffb4ab",
+                        "outline-variant": "#3b4b3f",
+                        "outline": "#849587",
+                        "background": "#0c150f",
+                        "surface-container-high": "#232c25",
+                        "secondary-container": "#00e3fd",
+                        "on-surface-variant": "#b9cbbc",
+                        "on-secondary-container": "#00616d",
+                        "on-error-container": "#ffdad6",
+                        "primary": "#f3fff3",
+                        "primary-container": "#00ff9c",
+                        "on-primary": "#00391f",
+                        "surface-bright": "#323c34",
+                        "primary-fixed-dim": "#00e38a",
+                        "tertiary-fixed-dim": "#e4c44f",
+                        "on-secondary-fixed": "#001f24",
+                        "tertiary-fixed": "#ffe17a",
+                        "on-tertiary-container": "#766000",
+                        "on-secondary": "#00363d",
+                        "on-tertiary-fixed": "#231b00",
+                        "on-tertiary": "#3b2f00",
+                        "surface-container-low": "#141e17",
+                        "surface": "#0c150f",
+                        "primary-fixed": "#56ffa7",
+                        "secondary-fixed-dim": "#00daf3",
+                        "on-secondary-fixed-variant": "#004f58",
+                        "inverse-on-surface": "#29332b",
+                        "surface-container": "#18221b",
+                        "on-surface": "#dae5da",
+                        "on-tertiary-fixed-variant": "#554500",
+                        "error-container": "#93000a",
+                        "surface-variant": "#2d3730",
+                        "surface-container-highest": "#2d3730",
+                        "secondary-fixed": "#9cf0ff",
+                        "on-background": "#dae5da",
+                        "on-primary-container": "#007142",
+                        "inverse-primary": "#006d40",
+                        "on-primary-fixed-variant": "#00522f",
+                        "secondary": "#bdf4ff",
+                        "tertiary": "#fffaff",
+                        "surface-dim": "#0c150f",
+                        "on-primary-fixed": "#002110",
+                        "surface-container-lowest": "#07100a",
+                        "tertiary-container": "#ffdd65"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    spacing: {
+                        "xs": "4px",
+                        "md": "16px",
+                        "base": "4px",
+                        "sm": "8px",
+                        "xl": "48px",
+                        "lg": "24px",
+                        "gutter": "20px",
+                        "margin": "32px"
+                    },
+                    fontFamily: {
+                        "h2": ["Space Grotesk"],
+                        "h1": ["Space Grotesk"],
+                        "h3": ["Space Grotesk"],
+                        "label-xs": ["Space Grotesk"],
+                        "data-mono": ["Space Grotesk"],
+                        "body-base": ["Space Grotesk"]
+                    },
+                    fontSize: {
+                        "h2": ["32px", { lineHeight: "1.2", letterSpacing: "-0.01em", fontWeight: "600" }],
+                        "h1": ["48px", { lineHeight: "1.1", letterSpacing: "-0.02em", fontWeight: "700" }],
+                        "h3": ["24px", { lineHeight: "1.3", letterSpacing: "0em", fontWeight: "600" }],
+                        "label-xs": ["12px", { lineHeight: "1", letterSpacing: "0.1em", fontWeight: "700" }],
+                        "data-mono": ["14px", { lineHeight: "1.5", letterSpacing: "0.05em", fontWeight: "500" }],
+                        "body-base": ["16px", { lineHeight: "1.6", letterSpacing: "0.01em", fontWeight: "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .scan-line {
+            background: linear-gradient(to bottom, transparent, rgba(0, 255, 156, 0.2), transparent);
+            height: 2px;
+            width: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0.5;
+        }
+        .noise-bg {
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.05;
+            mix-blend-mode: overlay;
+            pointer-events: none;
+        }
+        .glass-panel {
+            background: rgba(35, 44, 37, 0.2);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 255, 156, 0.1);
+            box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.05);
+        }
+        .glow-border-active {
+            border: 1px solid rgba(0, 255, 156, 0.5);
+            box-shadow: 0 0 15px rgba(0, 255, 156, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen font-body-base overflow-hidden relative">
+<!-- Ambient Background Elements -->
+<div class="absolute inset-0 noise-bg z-0"></div>
+<div class="absolute top-0 left-0 w-full h-full z-0 overflow-hidden">
+<div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-surface-container-high/30 via-background to-background"></div>
+<div class="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-container/5 rounded-full blur-[100px] pointer-events-none"></div>
+</div>
+<div class="scan-line z-0" style="top: 30%"></div>
+<!-- Central Content Area -->
+<div class="relative z-10 container mx-auto px-6 h-screen flex flex-col items-center justify-center">
+<!-- Top Header Info -->
+<div class="w-full max-w-3xl mb-xl text-center">
+<h1 class="font-h1 text-h1 text-primary-container drop-shadow-[0_0_8px_rgba(0,255,156,0.3)] mb-sm">SYSTEM_STATE: ANALYSIS</h1>
+<p class="font-data-mono text-data-mono text-primary-fixed-dim/70 tracking-[0.2em] uppercase">Initiating Deep Inspection Protocol</p>
+</div>
+<!-- Main Bento Grid Layout for Analysis Console -->
+<div class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<!-- Visual / Orb Section (Left/Top) -->
+<div class="md:col-span-5 glass-panel rounded-xl p-lg flex flex-col items-center justify-center relative min-h-[300px] border-outline/20">
+<div class="absolute top-sm left-sm font-label-xs text-label-xs text-outline tracking-widest uppercase">Target Vector</div>
+<!-- Central Rotating Orb Visual -->
+<div class="relative w-48 h-48 rounded-full border border-primary-container/30 shadow-[0_0_30px_rgba(0,255,156,0.1)] flex items-center justify-center">
+<div class="absolute inset-2 rounded-full border border-dashed border-primary-container/40"></div>
+<div class="absolute inset-6 rounded-full bg-surface-container-high shadow-inner flex items-center justify-center overflow-hidden">
+<img alt="Abstract glowing grid structure representing data analysis" class="w-full h-full object-cover opacity-60 mix-blend-screen" data-alt="Abstract glowing geometric grid structure with vibrant cyan and emerald neon lights against dark background, technological feel" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDJdb_uls8CdiY4F9nfTubj-C8Q_ONhUf9a91ObNEcp65p0OrntMRuJI0C38IGnMHouwLDXGGbfpcWSmv6_t0RoIQeoLXUtfGy6tuTwxIiSMVBXHrKIT08HzkIeO5xTy_BpvPKs9thCqsvR5RCtdcWERQuAN62JbBXAJLgRBam6AqZTLX4Oj4W4nhE02AfHC__Ef2UmE41kdBX9auPEFAlMFjX3YJoY7MBXyjN3PK5EufCBhz4A2AIvR0fJlYbAN-JPfn57NzQba80"/>
+</div>
+<div class="absolute inset-0 rounded-full border-t-2 border-primary-container/80 blur-[2px]"></div>
+<span class="material-symbols-outlined absolute text-primary-container text-4xl drop-shadow-[0_0_10px_rgba(0,255,156,0.8)]">troubleshoot</span>
+</div>
+<div class="mt-lg text-center w-full">
+<div class="font-data-mono text-data-mono text-on-surface-variant flex items-center justify-between w-full border-b border-outline/10 pb-xs mb-xs">
+<span>DATA_STREAM</span>
+<span class="text-secondary-fixed">ACTIVE</span>
+</div>
+<div class="font-data-mono text-data-mono text-on-surface-variant flex items-center justify-between w-full border-b border-outline/10 pb-xs">
+<span>THROUGHPUT</span>
+<span class="text-tertiary-container">2.4 TB/s</span>
+</div>
+</div>
+</div>
+<!-- Dynamic Status List Section (Right/Bottom) -->
+<div class="md:col-span-7 glass-panel rounded-xl p-lg flex flex-col justify-center gap-md border-outline/20">
+<div class="flex justify-between items-center mb-sm">
+<div class="font-label-xs text-label-xs text-outline tracking-widest uppercase">Processing Pipeline</div>
+<div class="font-data-mono text-data-mono text-primary-container bg-primary-container/10 px-2 py-1 rounded">68% COMPLETE</div>
+</div>
+<!-- Step 1: Completed -->
+<div class="flex flex-col gap-xs opacity-60">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-outline text-sm">check_circle</span>
+<span class="font-data-mono text-data-mono text-on-surface">Extracting frames...</span>
+</div>
+<span class="font-data-mono text-data-mono text-outline">100%</span>
+</div>
+<div class="w-full h-1 bg-surface-container-highest overflow-hidden">
+<div class="h-full bg-outline w-full"></div>
+</div>
+</div>
+<!-- Step 2: Completed -->
+<div class="flex flex-col gap-xs opacity-60">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-outline text-sm">check_circle</span>
+<span class="font-data-mono text-data-mono text-on-surface">Detecting faces...</span>
+</div>
+<span class="font-data-mono text-data-mono text-outline">100%</span>
+</div>
+<div class="w-full h-1 bg-surface-container-highest overflow-hidden">
+<div class="h-full bg-outline w-full"></div>
+</div>
+</div>
+<!-- Step 3: Active Processing -->
+<div class="flex flex-col gap-xs glow-border-active bg-primary-container/5 p-sm -mx-sm rounded-lg">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary-container text-sm animate-pulse">memory</span>
+<span class="font-data-mono text-data-mono text-primary-container font-bold">Running model inference...</span>
+</div>
+<span class="font-data-mono text-data-mono text-primary-container">42%</span>
+</div>
+<!-- Segmented Progress Bar for Active State -->
+<div class="w-full h-2 bg-surface-container-highest flex gap-[2px]">
+<div class="h-full bg-primary-container/80 flex-1 shadow-[0_0_8px_rgba(0,255,156,0.5)]"></div>
+<div class="h-full bg-primary-container/80 flex-1 shadow-[0_0_8px_rgba(0,255,156,0.5)]"></div>
+<div class="h-full bg-primary-container/80 flex-1 shadow-[0_0_8px_rgba(0,255,156,0.5)]"></div>
+<div class="h-full bg-primary-container/80 flex-1 shadow-[0_0_8px_rgba(0,255,156,0.5)]"></div>
+<div class="h-full bg-primary-container/20 flex-1"></div>
+<div class="h-full bg-primary-container/20 flex-1"></div>
+<div class="h-full bg-primary-container/20 flex-1"></div>
+<div class="h-full bg-primary-container/20 flex-1"></div>
+<div class="h-full bg-primary-container/20 flex-1"></div>
+<div class="h-full bg-primary-container/20 flex-1"></div>
+</div>
+</div>
+<!-- Step 4: Pending -->
+<div class="flex flex-col gap-xs opacity-30 mt-sm">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-outline text-sm">hourglass_empty</span>
+<span class="font-data-mono text-data-mono text-on-surface">Analyzing audio patterns...</span>
+</div>
+<span class="font-data-mono text-data-mono text-outline">0%</span>
+</div>
+<div class="w-full h-1 bg-surface-container-highest overflow-hidden">
+<div class="h-full bg-outline w-0"></div>
+</div>
+</div>
+<!-- CLI Feedback Area -->
+<div class="mt-auto bg-surface-container-highest/50 border border-outline/10 p-sm rounded font-data-mono text-data-mono text-xs text-primary-fixed-dim/60 shadow-inner">
+                    &gt; [SYS] Fetching neural weights... OK<br/>
+                    &gt; [SYS] Allocating tensor buffers... OK<br/>
+                    &gt; [INF] Batch 0x7F processing... <span class="text-primary-container animate-pulse">_</span>
+</div>
+</div>
+</div>
+<!-- Cancel Action (Ghost Button) -->
+<div class="mt-xl">
+<button class="font-data-mono text-data-mono text-error border border-error/50 px-lg py-sm rounded bg-error/5 hover:bg-error/10 hover:shadow-[0_0_15px_rgba(255,180,171,0.2)] transition-all flex items-center gap-xs">
+<span class="material-symbols-outlined text-sm">cancel</span>
+                 ABORT SEQUENCE
+             </button>
+</div>
+</div>
+</body></html>

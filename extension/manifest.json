@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Authrix — Deepfake Detector",
-  "version": "2.0.0",
-  "description": "Detect deepfake videos on any webpage. Captures tab stream directly — no download needed. Works on YouTube, Twitter, any platform.",
+  "version": "2.2.0",
+  "description": "Detect deepfake videos on any webpage. Captures tab stream directly — works on YouTube, Twitter, TikTok, any platform.",
 
   "permissions": [
     "contextMenus",
@@ -10,11 +10,13 @@
     "scripting",
     "storage",
     "tabCapture",
-    "tabs"
+    "tabs",
+    "offscreen"
   ],
 
   "host_permissions": [
-    "http://localhost:8000/*"
+    "http://localhost:8000/*",
+    "https://aarav13-authrix.hf.space/*"
   ],
 
   "background": {

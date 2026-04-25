@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Authrix - Deepfake Detection Platform</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&amp;family=Space+Grotesk:wght@600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-surface": "#e5e2e1",
+                        "primary-container": "#00ff9c",
+                        "on-secondary-fixed": "#002022",
+                        "on-tertiary-fixed-variant": "#930010",
+                        "primary-fixed-dim": "#00e38a",
+                        "surface-dim": "#131313",
+                        "on-background": "#e5e2e1",
+                        "primary-fixed": "#56ffa7",
+                        "surface-variant": "#353534",
+                        "surface-container": "#201f1f",
+                        "surface-tint": "#00e38a",
+                        "on-secondary-fixed-variant": "#004f54",
+                        "secondary-container": "#00eefc",
+                        "error": "#ffb4ab",
+                        "surface": "#131313",
+                        "tertiary": "#fffbff",
+                        "tertiary-fixed": "#ffdad6",
+                        "outline": "#849587",
+                        "on-primary-fixed": "#002110",
+                        "on-tertiary-fixed": "#410003",
+                        "outline-variant": "#3b4b3f",
+                        "tertiary-container": "#ffd6d2",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-surface": "#e5e2e1",
+                        "tertiary-fixed-dim": "#ffb3ac",
+                        "surface-container-low": "#1c1b1b",
+                        "surface-container-highest": "#353534",
+                        "on-tertiary-container": "#c7041a",
+                        "background": "#131313",
+                        "on-secondary-container": "#00686f",
+                        "surface-container-high": "#2a2a2a",
+                        "error-container": "#93000a",
+                        "on-secondary": "#00363a",
+                        "primary": "#f3fff3",
+                        "on-primary-fixed-variant": "#00522f",
+                        "on-primary": "#00391f",
+                        "surface-bright": "#3a3939",
+                        "inverse-primary": "#006d40",
+                        "secondary": "#d3fbff",
+                        "inverse-on-surface": "#313030",
+                        "secondary-fixed": "#7df4ff",
+                        "on-tertiary": "#680008",
+                        "on-error-container": "#ffdad6",
+                        "secondary-fixed-dim": "#00dbe9",
+                        "on-surface-variant": "#b9cbbc",
+                        "on-error": "#690005",
+                        "on-primary-container": "#007142"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin": "48px",
+                        "unit": "4px",
+                        "container-max": "1440px",
+                        "gutter": "24px",
+                        "grid-overlay": "32px"
+                    },
+                    "fontFamily": {
+                        "h1-display": ["Space Grotesk"],
+                        "h2-technical": ["Space Grotesk"],
+                        "label-caps": ["Space Grotesk"],
+                        "body-main": ["Inter"],
+                        "body-light": ["Inter"]
+                    },
+                    "fontSize": {
+                        "h1-display": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "h2-technical": ["32px", { "lineHeight": "1.2", "letterSpacing": "0.01em", "fontWeight": "600" }],
+                        "label-caps": ["11px", { "lineHeight": "1", "letterSpacing": "0.15em", "fontWeight": "600" }],
+                        "body-main": ["16px", { "lineHeight": "1.6", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "body-light": ["14px", { "lineHeight": "1.5", "letterSpacing": "0.03em", "fontWeight": "300" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #050505;
+            background-image: 
+                linear-gradient(rgba(0, 255, 156, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 156, 0.02) 1px, transparent 1px);
+            background-size: 32px 32px;
+            color: #e5e2e1;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: rgba(0, 255, 156, 0.3);
+            box-shadow: 0 0 10px rgba(0, 255, 156, 0.5), 0 0 20px rgba(0, 255, 156, 0.2);
+            animation: scan 4s linear infinite;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        .ambient-glow {
+            position: absolute;
+            width: 60vw;
+            height: 60vw;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 238, 252, 0.05) 0%, rgba(0, 0, 0, 0) 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .glass-panel {
+            background: rgba(19, 19, 19, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        .orb-container {
+            position: relative;
+            width: 400px;
+            height: 400px;
+            perspective: 1000px;
+        }
+        
+        .orb-core {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 255, 156, 0.8) 0%, rgba(0, 255, 156, 0.2) 60%, transparent 100%);
+            box-shadow: 0 0 60px rgba(0, 255, 156, 0.4);
+            z-index: 2;
+        }
+        
+        .ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            border-radius: 50%;
+            border: 1px solid rgba(0, 238, 252, 0.3);
+            transform-style: preserve-3d;
+        }
+        
+        .ring-1 { width: 200px; height: 200px; margin-top: -100px; margin-left: -100px; transform: rotateX(60deg) rotateY(20deg); border-top-color: rgba(0, 255, 156, 0.8); }
+        .ring-2 { width: 280px; height: 280px; margin-top: -140px; margin-left: -140px; transform: rotateX(40deg) rotateY(-30deg); border-right-color: rgba(0, 238, 252, 0.6); }
+        .ring-3 { width: 360px; height: 360px; margin-top: -180px; margin-left: -180px; transform: rotateX(80deg) rotateY(10deg); border-bottom-color: rgba(255, 180, 171, 0.4); }
+
+        .btn-primary {
+            background-color: #00ff9c;
+            color: #002110;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(0, 255, 156, 0.3);
+        }
+        .btn-primary:hover {
+            background-color: #56ffa7;
+            box-shadow: 0 0 25px rgba(0, 255, 156, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #e5e2e1;
+            border: 1px solid rgba(0, 255, 156, 0.5);
+            transition: all 0.3s ease;
+        }
+        .btn-secondary:hover {
+            border-color: #00ff9c;
+            box-shadow: 0 0 15px rgba(0, 255, 156, 0.2);
+            background: rgba(0, 255, 156, 0.05);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col font-body-main text-body-main antialiased selection:bg-primary-container selection:text-on-primary-fixed">
+<div class="scan-line"></div>
+<div class="ambient-glow"></div>
+<!-- TopNavBar -->
+<nav class="bg-zinc-950/30 backdrop-blur-xl fixed top-0 w-full z-50 border-b border-white/5 shadow-[0_8px_32px_0_rgba(0,0,0,0.8)]">
+<div class="flex justify-between items-center px-8 py-4 w-full max-w-screen-2xl mx-auto">
+<div class="text-2xl font-black text-white tracking-tighter italic">Authrix</div>
+<div class="hidden md:flex gap-8 items-center">
+<a class="font-['Space_Grotesk'] font-medium tracking-tight text-zinc-400 font-medium hover:text-emerald-300 hover:bg-white/5 transition-all duration-300 ease-out px-3 py-2 rounded-md active:scale-95 transition-transform" href="#">Technology</a>
+<a class="font-['Space_Grotesk'] font-medium tracking-tight text-emerald-400 font-bold border-b-2 border-emerald-400 pb-1 hover:text-emerald-300 hover:bg-white/5 transition-all duration-300 ease-out px-3 py-2 rounded-md active:scale-95 transition-transform" href="#">Solutions</a>
+<a class="font-['Space_Grotesk'] font-medium tracking-tight text-zinc-400 font-medium hover:text-emerald-300 hover:bg-white/5 transition-all duration-300 ease-out px-3 py-2 rounded-md active:scale-95 transition-transform" href="#">Intelligence</a>
+<a class="font-['Space_Grotesk'] font-medium tracking-tight text-zinc-400 font-medium hover:text-emerald-300 hover:bg-white/5 transition-all duration-300 ease-out px-3 py-2 rounded-md active:scale-95 transition-transform" href="#">Security</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="hidden lg:flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-colors text-zinc-400">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">language</span>
+</button>
+<button class="hidden lg:flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-colors text-zinc-400">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">account_circle</span>
+</button>
+<button class="font-['Space_Grotesk'] font-medium tracking-tight text-emerald-400 border border-emerald-400/30 px-5 py-2 rounded-md hover:bg-emerald-400/10 transition-colors">
+                    Get Started
+                </button>
+</div>
+</div>
+</nav>
+<!-- Main Hero Section -->
+<main class="flex-grow flex items-center justify-center pt-24 pb-12 px-6 lg:px-8 relative z-10 w-full max-w-container-max mx-auto">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-8 items-center w-full">
+<!-- Hero Left: Content -->
+<div class="flex flex-col items-start max-w-2xl">
+<div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary-container/30 bg-primary-container/5 mb-8">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
+<span class="font-label-caps text-label-caps text-primary-container uppercase tracking-widest">AI-Powered Authenticity Engine</span>
+</div>
+<h1 class="font-h1-display text-h1-display text-on-surface mb-6 leading-tight">
+                    Verify Reality in <br/>
+<span class="text-transparent bg-clip-text bg-gradient-to-r from-primary-container to-secondary-container">Real-Time</span>
+</h1>
+<p class="font-body-main text-body-main text-on-surface-variant mb-10 max-w-lg leading-relaxed">
+                    Detect deepfake videos and synthetic voices using multi-agent AI intelligence with explainable insights. Protect your digital perimeter with military-grade precision.
+                </p>
+<div class="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+<button class="btn-primary font-h2-technical text-[16px] font-semibold px-8 py-4 rounded-md flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">troubleshoot</span>
+                        Analyze Video
+                    </button>
+<button class="btn-secondary font-h2-technical text-[16px] font-medium px-8 py-4 rounded-md flex items-center justify-center gap-2">
+                        View Demo
+                        <span class="material-symbols-outlined text-[20px]">play_circle</span>
+</button>
+</div>
+<!-- Trust Indicators Glass Card -->
+<div class="mt-16 glass-panel rounded-lg p-6 w-full max-w-md">
+<div class="flex justify-between items-center mb-4">
+<span class="font-label-caps text-label-caps text-on-surface-variant">System Status</span>
+<div class="flex items-center gap-2 text-primary-container">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+<span class="font-body-light text-body-light text-xs">Operational</span>
+</div>
+</div>
+<div class="h-1 w-full bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary-container w-full relative">
+<div class="absolute top-0 right-0 h-full w-1/2 bg-gradient-to-l from-white/40 to-transparent animate-pulse"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Hero Right: 3D Visual -->
+<div class="flex justify-center items-center relative h-[500px] w-full">
+<!-- Background Mesh/Particles abstraction -->
+<div class="absolute inset-0 z-0 opacity-20 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+PHBhdGggZD0iTTIwIDBMMCAyMEwyMCA0MEw0MCAyMEwyMCAweiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDBmZjljIiBzdHJva2Utb3BhY2l0eT0iMC4xIi8+PC9zdmc+')]"></div>
+<div class="orb-container">
+<div class="orb-core"></div>
+<div class="ring ring-1"></div>
+<div class="ring ring-2"></div>
+<div class="ring ring-3"></div>
+<!-- Decorative Data Points -->
+<div class="absolute top-1/4 left-1/4 glass-panel px-3 py-1.5 rounded text-xs text-primary-container font-h2-technical z-10 shadow-[0_0_10px_rgba(0,255,156,0.2)]">
+                        99.8% Match
+                    </div>
+<div class="absolute bottom-1/4 right-1/4 glass-panel px-3 py-1.5 rounded text-xs text-secondary-container font-h2-technical z-10 shadow-[0_0_10px_rgba(0,238,252,0.2)]">
+                        Audio Sync OK
+                    </div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-zinc-950 w-full py-12 px-8 border-t border-white/5 mt-auto relative z-20">
+<div class="flex flex-col md:flex-row justify-between items-center w-full max-w-screen-2xl mx-auto">
+<div class="text-lg font-bold text-emerald-400 mb-6 md:mb-0">
+                Authrix
+            </div>
+<div class="flex flex-wrap justify-center gap-6 md:gap-8 mb-6 md:mb-0">
+<a class="font-['Space_Grotesk'] text-xs uppercase tracking-widest text-zinc-500 hover:text-emerald-300 transition-colors opacity-80 hover:opacity-100" href="#">Privacy Protocol</a>
+<a class="font-['Space_Grotesk'] text-xs uppercase tracking-widest text-zinc-500 hover:text-emerald-300 transition-colors opacity-80 hover:opacity-100" href="#">Terms of Engagement</a>
+<a class="font-['Space_Grotesk'] text-xs uppercase tracking-widest text-zinc-500 hover:text-emerald-300 transition-colors opacity-80 hover:opacity-100" href="#">API Documentation</a>
+<a class="font-['Space_Grotesk'] text-xs uppercase tracking-widest text-zinc-500 hover:text-emerald-300 transition-colors opacity-80 hover:opacity-100" href="#">Support</a>
+</div>
+<div class="font-['Space_Grotesk'] text-xs uppercase tracking-widest text-zinc-500">
+                © 2024 Authrix Intelligence Systems. All rights reserved.
+            </div>
+</div>
+</footer>
+</body></html>

@@ -25,11 +25,10 @@ class FrameAnalyzerAgent:
         """
         self.sample_rate = sample_rate
 
-    def extract_frames(self, video_path: str, max_frames: int = 40) -> list[np.ndarray]:
+    def extract_frames(self, video_path: str, max_frames: int = 50) -> list[np.ndarray]:
         """
         Extract sampled frames spread evenly across the full video duration.
-        Uses uniform temporal sampling instead of fixed-interval to ensure
-        coverage of the whole video regardless of length.
+        Increased max_frames from 40 to 50 for better coverage of extension captures.
         """
         frames = []
         cap = cv2.VideoCapture(video_path)
@@ -86,7 +85,7 @@ class FrameAnalyzerAgent:
 # Detects and crops faces using MediaPipe
 # ─────────────────────────────────────────────
 class FaceDetectorAgent:
-    def __init__(self, min_detection_confidence: float = 0.5):
+    def __init__(self, min_detection_confidence: float = 0.3):  # Lowered from 0.5 for compressed video
         self.mp_face_detection = mp.solutions.face_detection
         self.min_confidence = min_detection_confidence
 
@@ -335,41 +334,47 @@ class DecisionAgent:
     ) -> dict:
         """
         Aggregate predictions with adaptive scoring.
-
-        Key insight: deepfakes have CONSISTENTLY elevated scores across many
-        frames, while false positives on real videos tend to have a few
-        outlier frames with high scores but low overall consistency.
-
-        Strategy:
-        - Quality-gate blurry crops
-        - Per-frame: mean of valid face scores
-        - Final: weighted blend of mean + median (robust to outliers)
-        - Also return consistency metrics for adaptive thresholding
+        If no faces detected, falls back to full-frame analysis.
         """
         frame_scores = []
         frames_with_faces = 0
         frames_skipped_quality = 0
+        total_faces_detected = sum(len(crops) for crops in face_crops_per_frame)
 
-        for i, crops in enumerate(face_crops_per_frame):
-            if not crops:
-                continue
-
-            valid_probs = []
-            for crop in crops:
-                score = self.analyze_face(crop)
+        # Fallback: if very few faces detected, analyze full frames instead
+        if total_faces_detected < 5:
+            logger.warning(f"Only {total_faces_detected} faces detected — using full-frame analysis")
+            for i, frame in enumerate(frames):
+                # Resize frame to 224x224 for model input
+                frame_resized = cv2.resize(frame, (224, 224))
+                score = self.analyze_face(frame_resized)
                 if score is not None:
-                    valid_probs.append(score)
+                    frames_with_faces += 1
+                    frame_scores.append({"frame_index": i, "fake_probability": round(score, 4)})
+                else:
+                    frames_skipped_quality += 1
+        else:
+            # Normal face-based analysis
+            for i, crops in enumerate(face_crops_per_frame):
+                if not crops:
+                    continue
 
-            if not valid_probs:
-                frames_skipped_quality += 1
-                continue
+                valid_probs = []
+                for crop in crops:
+                    score = self.analyze_face(crop)
+                    if score is not None:
+                        valid_probs.append(score)
 
-            frames_with_faces += 1
-            frame_score = float(np.mean(valid_probs))
-            frame_scores.append({"frame_index": i, "fake_probability": round(frame_score, 4)})
+                if not valid_probs:
+                    frames_skipped_quality += 1
+                    continue
+
+                frames_with_faces += 1
+                frame_score = float(np.mean(valid_probs))
+                frame_scores.append({"frame_index": i, "fake_probability": round(frame_score, 4)})
 
         if frames_skipped_quality > 0:
-            logger.info(f"Skipped {frames_skipped_quality} frames due to low face quality")
+            logger.info(f"Skipped {frames_skipped_quality} frames due to low quality")
 
         if not frame_scores:
             return {
@@ -388,15 +393,11 @@ class DecisionAgent:
         else:
             mean_prob   = float(np.mean(probs))
             median_prob = float(np.median(probs))
-            # Mean+median blend: robust to both outliers and sparse fakes
             overall = mean_prob * 0.65 + median_prob * 0.35
 
         overall = round(float(np.clip(overall, 0.0, 1.0)), 4)
 
-        # Consistency: fraction of frames above 0.50 — high for real deepfakes
         consistency = sum(1 for p in probs if p > 0.50) / len(probs)
-
-        # Face coverage: how much of the video had detectable faces
         face_coverage = frames_with_faces / max(len(frames), 1)
 
         logger.info(
@@ -422,8 +423,9 @@ class DecisionAgent:
 # Builds the final human-readable report
 # ─────────────────────────────────────────────
 class ReportGeneratorAgent:
-    # Base threshold — adjusted adaptively per video
-    BASE_THRESHOLD = 0.58
+    # Lowered threshold for compressed video captures (extension use case)
+    # Original files: 0.58, Compressed captures: 0.54
+    BASE_THRESHOLD = 0.54
 
     def generate(self, analysis: dict, metadata: dict, audio: dict | None = None) -> dict:
         prob        = analysis["overall_fake_probability"]
