@@ -114,6 +114,7 @@ authenticator = None
 async def startup_event():
     global authenticator
     logger.info("Initializing DeepfakeAuthenticator...")
+    logger.info(f"Frontend path: {_vanilla_dir} (exists={_vanilla_dir.exists()})")
     authenticator = DeepfakeAuthenticator()
     logger.info(
         f"DeepfakeAuthenticator ready — model: "
@@ -343,6 +344,8 @@ if _react_dist.exists():
         return {"detail": "Not found"}
 
 elif _vanilla_dir.exists():
+    from fastapi.staticfiles import StaticFiles as SF
+
     @app.get("/script.js")
     async def serve_script():
         return FileResponse(
@@ -360,6 +363,17 @@ elif _vanilla_dir.exists():
 
     @app.get("/")
     async def serve_index():
+        return FileResponse(
+            str(_vanilla_dir / "index.html"),
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+        )
+
+    # Serve any other static file from frontend-vanilla/
+    @app.get("/{filename:path}")
+    async def serve_static(filename: str):
+        file_path = _vanilla_dir / filename
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(str(file_path))
         return FileResponse(
             str(_vanilla_dir / "index.html"),
             headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
