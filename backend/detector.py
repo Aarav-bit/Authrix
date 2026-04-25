@@ -425,34 +425,53 @@ class ReportGeneratorAgent:
     # Base threshold — adjusted adaptively per video
     BASE_THRESHOLD = 0.58
 
-    def generate(self, analysis: dict, metadata: dict) -> dict:
+    def generate(self, analysis: dict, metadata: dict, audio: dict | None = None) -> dict:
         prob        = analysis["overall_fake_probability"]
         consistency = analysis.get("consistency", 0.5)
         coverage    = analysis.get("face_coverage", 0.5)
 
-        # ── Adaptive threshold ────────────────────────────────────────
-        # Lower threshold when:
-        #   - High consistency (many frames agree it's fake) → easier to flag
-        #   - High face coverage (face visible throughout) → more reliable signal
-        # Raise threshold when:
-        #   - Low consistency (only a few frames look fake) → likely false positive
-        #   - Low coverage (face rarely visible) → unreliable signal
+        # ── Adaptive visual threshold ─────────────────────────────────
         threshold = self.BASE_THRESHOLD
         if consistency >= 0.70 and coverage >= 0.50:
-            threshold -= 0.06   # 0.52 — confident signal, lower bar
+            threshold -= 0.06
         elif consistency >= 0.55:
-            threshold -= 0.03   # 0.55
+            threshold -= 0.03
         elif consistency < 0.35:
-            threshold += 0.07   # 0.65 — inconsistent, raise bar
+            threshold += 0.07
 
-        is_fake    = prob >= threshold
+        visual_fake = prob >= threshold
+
+        # ── Combine with audio signal ─────────────────────────────────
+        audio_fake = False
+        audio_prob = 0.0
+        if audio and audio.get("available"):
+            audio_prob = audio.get("fake_probability", 0.0)
+            audio_fake = audio.get("result") == "AI_VOICE"
+
+        # Final verdict: visual is primary, audio can upgrade OR downgrade
+        if audio and audio.get("available"):
+            # Both agree → high confidence
+            if visual_fake and audio_fake:
+                is_fake = True
+            elif not visual_fake and not audio_fake:
+                is_fake = False
+            # Disagreement → visual wins but audio nudges the score
+            elif visual_fake and not audio_fake:
+                # Audio says real — only keep FAKE if visual is strong
+                is_fake = prob >= (threshold + 0.05)
+            else:
+                # Visual says real but audio says AI — flag as suspicious
+                is_fake = audio_prob >= 0.75  # only override if audio is very confident
+        else:
+            is_fake = visual_fake
+
         calibrated = self._calibrate(prob)
         confidence = round(calibrated * 100, 1)
         result     = "FAKE" if is_fake else "REAL"
 
         logger.info(
-            f"Decision: prob={prob:.3f} threshold={threshold:.3f} "
-            f"consistency={consistency:.2f} coverage={coverage:.2f} → {result}"
+            f"Decision: visual_prob={prob:.3f} threshold={threshold:.3f} "
+            f"visual_fake={visual_fake} audio_fake={audio_fake} → {result}"
         )
 
         details        = self._build_details(analysis, metadata, prob, is_fake, threshold)
@@ -558,18 +577,33 @@ class ReportGeneratorAgent:
 # ─────────────────────────────────────────────
 class DeepfakeAuthenticator:
     def __init__(self):
-        self.frame_agent = FrameAnalyzerAgent(sample_rate=10)
-        self.face_agent = FaceDetectorAgent(min_detection_confidence=0.5)
+        self.frame_agent  = FrameAnalyzerAgent(sample_rate=10)
+        self.face_agent   = FaceDetectorAgent(min_detection_confidence=0.5)
         self.decision_agent = DecisionAgent()
         self.report_agent = ReportGeneratorAgent()
 
+        # Audio analysis (lazy import to avoid blocking startup)
+        self._audio = None
+
+    def _get_audio(self):
+        if self._audio is None:
+            try:
+                from audio_detector import AudioAuthenticator
+                self._audio = AudioAuthenticator()
+                logger.info("AudioAuthenticator initialized")
+            except Exception as e:
+                logger.warning(f"AudioAuthenticator unavailable: {e}")
+                self._audio = False
+        return self._audio if self._audio else None
+
     def analyze(self, video_path: str) -> dict:
+        import time
         start = time.time()
         logger.info(f"Starting analysis: {video_path}")
 
         # Step 1: Extract frames
         metadata = self.frame_agent.get_video_metadata(video_path)
-        frames = self.frame_agent.extract_frames(video_path, max_frames=40)
+        frames   = self.frame_agent.extract_frames(video_path, max_frames=40)
 
         if not frames:
             return {
@@ -578,22 +612,34 @@ class DeepfakeAuthenticator:
                 "details": ["Could not extract frames from video"],
                 "frame_timeline": [],
                 "metadata": metadata,
+                "audio": {"available": False, "result": "NO_AUDIO", "confidence": 0, "details": []},
             }
 
-        # Step 2: Detect faces in each frame
+        # Step 2: Detect faces
         face_crops_per_frame = [
             self.face_agent.detect_and_crop_faces(frame) for frame in frames
         ]
 
-        # Step 3: Run decision analysis
+        # Step 3: Visual decision
         analysis = self.decision_agent.analyze_frames(frames, face_crops_per_frame)
 
-        # Step 4: Generate report
-        report = self.report_agent.generate(analysis, metadata)
+        # Step 4: Audio analysis (parallel-ish — runs after visual)
+        audio_result = {"available": False, "result": "NO_AUDIO", "confidence": 0, "details": []}
+        audio_agent = self._get_audio()
+        if audio_agent:
+            try:
+                audio_result = audio_agent.analyze(video_path)
+            except Exception as e:
+                logger.warning(f"Audio analysis failed: {e}")
+
+        # Step 5: Generate report (visual + audio combined)
+        report = self.report_agent.generate(analysis, metadata, audio_result)
         report["processing_time_sec"] = round(time.time() - start, 2)
+        report["audio"] = audio_result
 
         logger.info(
             f"Analysis complete: {report['result']} ({report['confidence']}%) "
+            f"audio={audio_result.get('result','N/A')} "
             f"in {report['processing_time_sec']}s"
         )
         return report

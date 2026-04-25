@@ -135,7 +135,7 @@ async def analyze_video(file: UploadFile = File(...)):
 
 
 # ── Serve frontend ────────────────────────────
-frontend_path = Path(__file__).parent.parent / "frontend"
+frontend_path = Path(__file__).parent.parent / "frontend-vanilla"
 
 if frontend_path.exists():
     @app.get("/")

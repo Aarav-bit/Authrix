@@ -258,9 +258,6 @@ function renderResult(data) {
   // Frame timeline
   renderTimeline(data, isFake);
 
-  // Audio result
-  renderAudio(data.audio || null);
-
   show('resultSection');
 }
 
@@ -354,80 +351,4 @@ function showError(msg) {
   hide('loadingSection');
   document.getElementById('errorMsg').textContent = msg;
   show('errorSection');
-}
-
-// ── Audio Result ──────────────────────────────
-function renderAudio(audio) {
-  const section = document.getElementById('audioSection');
-  if (!section) return;
-
-  if (!audio || !audio.available) {
-    section.classList.add('hidden');
-    return;
-  }
-
-  section.classList.remove('hidden');
-
-  const isAI    = audio.result === 'AI_VOICE';
-  const pct     = audio.confidence;
-  const color   = isAI ? '#ff3355' : '#00ff88';
-  const colorDim = isAI ? 'rgba(255,51,85,0.15)' : 'rgba(0,255,136,0.15)';
-
-  // Header badge
-  const badge = document.getElementById('audioBadge');
-  if (badge) {
-    badge.textContent = isAI ? '🤖 AI VOICE DETECTED' : '🎙️ HUMAN VOICE';
-    badge.style.color = color;
-    badge.style.borderColor = color + '55';
-    badge.style.background  = colorDim;
-  }
-
-  // Scores
-  const modelScore = document.getElementById('audioModelScore');
-  const heurScore  = document.getElementById('audioHeurScore');
-  if (modelScore) modelScore.textContent = audio.model_score + '%';
-  if (heurScore)  heurScore.textContent  = audio.heuristic_score + '%';
-
-  // Bar
-  const bar = document.getElementById('audioBar');
-  if (bar) {
-    bar.style.background = isAI
-      ? 'linear-gradient(90deg,#880022,#ff3355)'
-      : 'linear-gradient(90deg,#00aaff,#00ff88)';
-    bar.style.boxShadow = `0 0 12px ${color}66`;
-    setTimeout(() => { bar.style.width = pct + '%'; }, 80);
-  }
-
-  // Details
-  const dl = document.getElementById('audioDetailsList');
-  if (dl) {
-    dl.innerHTML = '';
-    (audio.details || []).forEach((txt, i) => {
-      const div = document.createElement('div');
-      div.className = 'insight-item';
-      div.style.animationDelay = (i * 0.07) + 's';
-      div.style.borderLeft = `2px solid ${color}`;
-      div.innerHTML = `<span class="insight-dot" style="background:${color};box-shadow:0 0 6px ${color}88;"></span><span>${esc(txt)}</span>`;
-      dl.appendChild(div);
-    });
-  }
-
-  // Features
-  const feat = audio.features || {};
-  const featGrid = document.getElementById('audioFeatGrid');
-  if (featGrid) {
-    featGrid.innerHTML = '';
-    const items = [
-      ['Pitch Std Dev', feat.pitch_std_hz != null ? feat.pitch_std_hz + ' Hz' : '—'],
-      ['MFCC Δ Variance', feat.mfcc_delta_var != null ? feat.mfcc_delta_var : '—'],
-      ['Spectral Flatness', feat.spectral_flatness != null ? feat.spectral_flatness : '—'],
-      ['Silence Ratio', feat.silence_ratio != null ? (feat.silence_ratio * 100).toFixed(1) + '%' : '—'],
-    ];
-    items.forEach(([k, v]) => {
-      const row = document.createElement('div');
-      row.className = 'meta-row';
-      row.innerHTML = `<span style="font-size:11px;color:var(--muted);">${k}</span><span style="font-size:12px;font-weight:600;color:#fff;font-family:'JetBrains Mono',monospace;">${v}</span>`;
-      featGrid.appendChild(row);
-    });
-  }
 }
