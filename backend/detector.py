@@ -208,94 +208,79 @@ class TemporalConsistencyAgent:
         if len(frames) < 4:
             return {"score": 0.5, "available": False, "signals": []}
 
-        signals  = []
-        scores   = []
+        signals = []
+        scores  = []
 
         try:
-            # ── 1. Pixel-level temporal variance ─────────────────────────
-            # AI video: unnaturally low variance in static regions
-            # Real video: natural noise/grain causes higher variance
             gray_frames = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY).astype(np.float32)
                            for f in frames]
-            stack       = np.stack(gray_frames, axis=0)  # [N, H, W]
-            pixel_var   = np.mean(np.var(stack, axis=0))  # mean variance per pixel
 
-            # Real video: pixel_var typically 50-300
-            # AI video: often < 30 (too smooth) or > 500 (flickering)
-            if pixel_var < 25:
-                scores.append(0.72)
-                signals.append(f"Unnaturally smooth temporal texture (var={pixel_var:.1f})")
-            elif pixel_var > 600:
+            # ── 1. Pixel variance — only flag near-zero (AI renders perfectly still) ──
+            stack     = np.stack(gray_frames, axis=0)
+            pixel_var = float(np.mean(np.var(stack, axis=0)))
+            if pixel_var < 3.0:
+                # Essentially zero variance — only AI generators produce this
                 scores.append(0.68)
-                signals.append(f"Excessive temporal flickering (var={pixel_var:.1f})")
+                signals.append("Near-zero pixel variance — AI-generated stillness")
+            elif pixel_var > 900:
+                scores.append(0.62)
+                signals.append("Extreme temporal flickering")
             else:
-                scores.append(0.30)
+                scores.append(0.32)  # neutral — real phone videos land here
 
-            # ── 2. Frame difference consistency ──────────────────────────
-            # AI video: frame diffs are too uniform (generated at fixed rate)
-            # Real video: natural motion causes variable frame differences
-            diffs = []
-            for i in range(1, len(gray_frames)):
-                diff = np.mean(np.abs(gray_frames[i] - gray_frames[i-1]))
-                diffs.append(diff)
-
-            diff_std  = float(np.std(diffs))
+            # ── 2. Frame diff CV — only flag essentially zero (perfectly uniform) ──
+            diffs = [float(np.mean(np.abs(gray_frames[i] - gray_frames[i-1])))
+                     for i in range(1, len(gray_frames))]
             diff_mean = float(np.mean(diffs))
-            diff_cv   = diff_std / (diff_mean + 1e-8)  # coefficient of variation
+            diff_cv   = float(np.std(diffs)) / (diff_mean + 1e-8)
 
-            # Real video: CV typically 0.3-0.8 (variable motion)
-            # AI video: CV often < 0.15 (too uniform) or > 1.2 (unstable)
-            if diff_cv < 0.12:
-                scores.append(0.70)
-                signals.append(f"Unnaturally uniform motion pattern (CV={diff_cv:.3f})")
-            elif diff_cv > 1.3:
+            if diff_cv < 0.008:
+                # Perfectly identical diffs — only AI produces this
                 scores.append(0.65)
-                signals.append(f"Unstable frame transitions (CV={diff_cv:.3f})")
+                signals.append("Perfectly uniform frame transitions — AI pattern")
+            elif diff_cv > 2.0:
+                scores.append(0.60)
+                signals.append("Highly erratic frame transitions")
             else:
-                scores.append(0.28)
+                scores.append(0.30)  # neutral
 
-            # ── 3. High-frequency temporal noise ─────────────────────────
-            # Real cameras have consistent sensor noise patterns
-            # AI generators produce different noise each frame
+            # ── 3. Noise consistency — only flag extreme inconsistency ────
             if len(frames) >= 6:
                 noise_vars = []
                 for frame in frames:
-                    gray   = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
-                    blur   = cv2.GaussianBlur(gray, (5, 5), 0)
-                    noise  = gray - blur
-                    noise_vars.append(float(np.var(noise)))
-
-                noise_consistency = float(np.std(noise_vars) / (np.mean(noise_vars) + 1e-8))
-                if noise_consistency > 0.5:
-                    scores.append(0.66)
-                    signals.append(f"Inconsistent noise pattern across frames ({noise_consistency:.2f})")
+                    g    = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
+                    blur = cv2.GaussianBlur(g, (5, 5), 0)
+                    noise_vars.append(float(np.var(g - blur)))
+                nc = float(np.std(noise_vars) / (np.mean(noise_vars) + 1e-8))
+                if nc > 1.0:
+                    scores.append(0.62)
+                    signals.append("Highly inconsistent sensor noise pattern")
                 else:
                     scores.append(0.30)
 
-            # ── 4. Color channel temporal stability ───────────────────────
-            # AI video often has subtle color shifts between frames
-            channel_drifts = []
+            # ── 4. Color drift — only flag severe drift ───────────────────
+            drifts = []
             for i in range(1, min(len(frames), 15)):
                 b1, g1, r1 = cv2.split(frames[i-1].astype(np.float32))
                 b2, g2, r2 = cv2.split(frames[i].astype(np.float32))
-                drift = abs(np.mean(r1) - np.mean(r2)) + \
-                        abs(np.mean(g1) - np.mean(g2)) + \
-                        abs(np.mean(b1) - np.mean(b2))
-                channel_drifts.append(drift)
-
-            mean_drift = float(np.mean(channel_drifts))
-            if mean_drift > 8.0:
-                scores.append(0.68)
-                signals.append(f"Color channel drift between frames ({mean_drift:.1f})")
+                drifts.append(
+                    abs(float(np.mean(r1)) - float(np.mean(r2))) +
+                    abs(float(np.mean(g1)) - float(np.mean(g2))) +
+                    abs(float(np.mean(b1)) - float(np.mean(b2)))
+                )
+            mean_drift = float(np.mean(drifts))
+            if mean_drift > 20.0:
+                scores.append(0.63)
+                signals.append("Severe color channel drift between frames")
             else:
                 scores.append(0.28)
 
         except Exception as e:
-            logger.warning(f"Temporal analysis error: {e}")
+            logger.warning("Temporal analysis error: %s", e)
             return {"score": 0.5, "available": False, "signals": []}
 
         final_score = float(np.mean(scores)) if scores else 0.5
-        logger.info(f"Temporal score: {final_score:.3f} signals={signals}")
+        logger.info("Temporal score: %.3f signals=%s", final_score, signals)
 
         return {
             "score":     round(final_score, 4),
@@ -716,7 +701,7 @@ class DecisionAgent:
 # Agent 4: Report Generator Agent
 # ─────────────────────────────────────────────
 class ReportGeneratorAgent:
-    BASE_THRESHOLD = 0.58  # Restored — 0.54 caused false positives
+    BASE_THRESHOLD = 0.62  # Raised from 0.58 to reduce false positives on real phone videos
 
     def generate(self, analysis: dict, metadata: dict, audio: dict | None = None,
                  metadata_result: dict | None = None, temporal_result: dict | None = None) -> dict:
@@ -753,9 +738,10 @@ class ReportGeneratorAgent:
         temporal_score = 0.5
         if temporal_result and temporal_result.get("available"):
             temporal_score = temporal_result["score"]
-            # Blend temporal into visual probability (20% weight)
-            if temporal_score > 0.60:
-                prob = prob * 0.80 + temporal_score * 0.20
+            # Only boost if temporal is strongly suspicious (> 0.65) AND
+            # visual model already leans fake (> 0.45) — prevents false positives
+            if temporal_score > 0.65 and prob > 0.45:
+                prob = prob * 0.85 + temporal_score * 0.15  # reduced from 0.20
                 prob = round(float(np.clip(prob, 0.0, 1.0)), 4)
                 logger.info(f"Temporal boost applied: new prob={prob:.3f}")
 
