@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deepfake Authenticator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --neon:    #00ff88;
+      --neon-dim:#00cc6a;
+      --red:     #ff4444;
+      --red-dim: #cc2222;
+      --bg:      #080810;
+      --card:    #0f0f1a;
+      --card2:   #13131f;
+      --border:  #1e1e30;
+      --text:    #e2e8f0;
+      --muted:   #64748b;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text);
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, #00ff8808 0%, transparent 60%),
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 100% 100%, 44px 44px, 44px 44px;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: #00ff8833; border-radius: 4px; }
+
+    /* ── Utilities ── */
+    .neon  { color: var(--neon); text-shadow: 0 0 12px #00ff8855; }
+    .red   { color: var(--red);  text-shadow: 0 0 12px #ff444455; }
+    .hidden { display: none !important; }
+
+    /* ── Scanner ── */
+    .scanner {
+      position: fixed; inset: 0; pointer-events: none; z-index: 100;
+      background: linear-gradient(to bottom,
+        transparent 0%, transparent 49.9%,
+        #00ff8806 50%, transparent 50.1%);
+      background-size: 100% 4px;
+      animation: scanMove 8s linear infinite;
+    }
+    @keyframes scanMove {
+      0%   { background-position: 0 0; }
+      100% { background-position: 0 100vh; }
+    }
+
+    /* ── Header ── */
+    .header {
+      position: sticky; top: 0; z-index: 50;
+      background: #080810ee;
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    .card-inner {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    /* ── Upload zone ── */
+    #dropZone {
+      border: 2px dashed #00ff8830;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all .25s ease;
+      min-height: 160px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #dropZone:hover, #dropZone.drag-over {
+      border-color: var(--neon);
+      background: #00ff8806;
+      box-shadow: 0 0 40px #00ff8812, inset 0 0 40px #00ff8806;
+    }
+
+    /* ── Analyze button ── */
+    #analyzeBtn {
+      background: transparent;
+      border: 1px solid #00ff8830;
+      color: #00ff8855;
+      border-radius: 8px;
+      padding: 12px 36px;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: .15em;
+      cursor: not-allowed;
+      transition: all .25s ease;
+    }
+    #analyzeBtn.active {
+      border-color: var(--neon);
+      color: var(--neon);
+      cursor: pointer;
+      box-shadow: 0 0 20px #00ff8820;
+    }
+    #analyzeBtn.active:hover {
+      background: #00ff8810;
+      box-shadow: 0 0 30px #00ff8835;
+      transform: translateY(-1px);
+    }
+    #analyzeBtn:disabled { opacity: .45; cursor: not-allowed; transform: none !important; }
+
+    /* ── Progress bar ── */
+    .prog-track {
+      height: 3px; background: var(--border); border-radius: 99px; overflow: hidden;
+    }
+    .prog-fill {
+      height: 100%; border-radius: 99px;
+      background: linear-gradient(90deg, var(--neon), var(--neon-dim));
+      box-shadow: 0 0 8px var(--neon);
+      transition: width .4s ease;
+    }
+
+    /* ── Verdict card ── */
+    #verdictCard {
+      border-radius: 14px;
+      border: 2px solid var(--border);
+      background: var(--card);
+      transition: border-color .5s, box-shadow .5s;
+    }
+    #verdictCard.fake {
+      border-color: var(--red);
+      box-shadow: 0 0 50px #ff444418, inset 0 0 60px #ff44440a;
+    }
+    #verdictCard.real {
+      border-color: var(--neon);
+      box-shadow: 0 0 50px #00ff8818, inset 0 0 60px #00ff880a;
+    }
+
+    /* ── Verdict badge ── */
+    .verdict-badge {
+      width: 96px; height: 96px; border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.5rem;
+      transition: all .5s;
+    }
+    .verdict-badge.fake {
+      border-color: var(--red);
+      box-shadow: 0 0 30px #ff444440;
+      animation: pulseFake 2s ease-in-out infinite;
+    }
+    .verdict-badge.real {
+      border-color: var(--neon);
+      box-shadow: 0 0 30px #00ff8840;
+      animation: pulseReal 2s ease-in-out infinite;
+    }
+    @keyframes pulseFake {
+      0%,100% { box-shadow: 0 0 20px #ff444430; }
+      50%      { box-shadow: 0 0 45px #ff444460; }
+    }
+    @keyframes pulseReal {
+      0%,100% { box-shadow: 0 0 20px #00ff8830; }
+      50%      { box-shadow: 0 0 45px #00ff8860; }
+    }
+
+    /* ── Confidence bar ── */
+    .conf-track {
+      height: 10px; background: var(--border); border-radius: 99px; overflow: hidden;
+    }
+    .conf-fill {
+      height: 100%; border-radius: 99px;
+      transition: width 1.2s cubic-bezier(.22,1,.36,1);
+    }
+    .conf-fill.fake {
+      background: linear-gradient(90deg, #ff2222, #ff6666);
+      box-shadow: 0 0 12px #ff444466;
+    }
+    .conf-fill.real {
+      background: linear-gradient(90deg, var(--neon), var(--neon-dim));
+      box-shadow: 0 0 12px #00ff8866;
+    }
+
+    /* ── Risk meter ── */
+    .risk-meter {
+      position: relative; height: 8px; border-radius: 99px; overflow: hidden;
+      background: linear-gradient(90deg, #00ff88, #ffcc00, #ff4444);
+    }
+    .risk-needle {
+      position: absolute; top: -4px;
+      width: 3px; height: 16px; border-radius: 2px;
+      background: white;
+      box-shadow: 0 0 6px white;
+      transition: left 1.2s cubic-bezier(.22,1,.36,1);
+      transform: translateX(-50%);
+    }
+
+    /* ── Insight items ── */
+    .insight-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 10px 12px; border-radius: 8px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      font-size: 12px; line-height: 1.5; color: #94a3b8;
+      animation: slideIn .3s ease both;
+    }
+    .insight-item .dot {
+      flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; margin-top: 5px;
+    }
+    @keyframes slideIn {
+      from { opacity:0; transform: translateX(-8px); }
+      to   { opacity:1; transform: none; }
+    }
+
+    /* ── Meta rows ── */
+    .meta-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .meta-row:last-child { border-bottom: none; }
+    .meta-key { color: var(--muted); letter-spacing: .05em; }
+    .meta-val { color: var(--text); font-weight: 600; }
+
+    /* ── Timeline ── */
+    #timelineChart {
+      display: flex; align-items: flex-end; gap: 3px;
+      height: 80px; overflow-x: auto; padding-bottom: 2px;
+      position: relative;
+    }
+    .t-bar {
+      flex-shrink: 0; width: 10px; border-radius: 3px 3px 0 0;
+      transition: opacity .3s, transform .2s;
+      cursor: pointer;
+      position: relative;
+    }
+    .t-bar:hover { transform: scaleY(1.08); filter: brightness(1.3); }
+    .t-bar .tooltip {
+      display: none; position: absolute; bottom: calc(100% + 6px); left: 50%;
+      transform: translateX(-50%);
+      background: #1e1e30; border: 1px solid var(--border);
+      color: var(--text); font-size: 10px; padding: 4px 7px; border-radius: 5px;
+      white-space: nowrap; z-index: 10; pointer-events: none;
+    }
+    .t-bar:hover .tooltip { display: block; }
+    .threshold-line {
+      position: absolute; left: 0; right: 0; height: 1px;
+      background: #facc1555; pointer-events: none;
+    }
+
+    /* ── Agent steps ── */
+    .agent-card {
+      border-radius: 10px; padding: 12px; text-align: center;
+      background: var(--card2); border: 1px solid var(--border);
+      transition: border-color .3s, background .3s, box-shadow .3s;
+    }
+    .agent-card.active {
+      border-color: #00ff8844;
+      background: #00ff8808;
+      box-shadow: 0 0 20px #00ff8810;
+    }
+    .agent-card .a-status { font-size: 10px; color: var(--muted); margin-top: 4px; }
+    .agent-card.active .a-status { color: var(--neon); }
+
+    /* ── Fade/slide animations ── */
+    .fade-up {
+      animation: fadeUp .45s ease both;
+    }
+    @keyframes fadeUp {
+      from { opacity:0; transform: translateY(16px); }
+      to   { opacity:1; transform: none; }
+    }
+
+    /* ── Section label ── */
+    .sec-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .12em;
+      color: var(--muted); display: flex; align-items: center; gap: 6px;
+    }
+    .sec-label::before {
+      content: ''; display: inline-block;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--neon); box-shadow: 0 0 6px var(--neon);
+    }
+
+    /* ── Glow badge ── */
+    #modelBadge {
+      font-size: 10px; padding: 4px 12px; border-radius: 99px;
+      border: 1px solid var(--border); color: var(--muted);
+      letter-spacing: .08em; transition: all .3s;
+    }
+    #modelBadge.ready {
+      border-color: #00ff8844; color: #00ff88aa;
+      box-shadow: 0 0 10px #00ff8815;
+    }
+  </style>
+</head>
+<body>
+
+<div class="scanner"></div>
+
+<!-- ══ HEADER ══════════════════════════════════════════ -->
+<header class="header">
+  <div style="max-width:900px; margin:0 auto; padding:14px 24px; display:flex; align-items:center; justify-content:space-between;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div style="width:34px;height:34px;border-radius:8px;border:1px solid #00ff8855;
+                  display:flex;align-items:center;justify-content:center;
+                  box-shadow:0 0 14px #00ff8820;">
+        <svg width="16" height="16" fill="none" stroke="#00ff88" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          <path d="M11 8v6M8 11h6"/>
+        </svg>
+      </div>
+      <div>
+        <div style="font-size:15px;font-weight:700;letter-spacing:.12em;" class="neon">DEEPFAKE AUTHENTICATOR</div>
+        <div style="font-size:10px;color:var(--muted);letter-spacing:.1em;">AI-POWERED VIDEO FORENSICS</div>
+      </div>
+    </div>
+    <div id="modelBadge">CONNECTING...</div>
+  </div>
+</header>
+
+<!-- ══ MAIN ════════════════════════════════════════════ -->
+<main style="max-width:900px; margin:0 auto; padding:32px 24px; display:flex; flex-direction:column; gap:20px;">
+
+  <!-- Upload card -->
+  <div class="card" style="padding:20px;">
+    <div id="dropZone">
+      <div id="uploadPrompt" style="text-align:center; padding:20px;">
+        <div style="width:56px;height:56px;border-radius:50%;border:1px solid #00ff8830;
+                    display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+          <svg width="24" height="24" fill="none" stroke="#00ff8866" stroke-width="1.5" viewBox="0 0 24 24">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <p style="font-size:14px;font-weight:600;color:#cbd5e1;margin-bottom:6px;">Drop video here or click to upload</p>
+        <p style="font-size:11px;color:var(--muted);">MP4 · AVI · MOV · MKV · WebM &nbsp;·&nbsp; Max 100 MB</p>
+      </div>
+
+      <div id="fileChosen" class="hidden" style="display:flex;align-items:center;gap:14px;padding:20px;">
+        <div style="width:44px;height:44px;border-radius:8px;background:#00ff8810;border:1px solid #00ff8830;
+                    display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg width="20" height="20" fill="none" stroke="#00ff88" stroke-width="2" viewBox="0 0 24 24">
+            <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
+            <line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/>
+            <line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/>
+            <line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/>
+            <line x1="17" y1="7" x2="22" y2="7"/>
+          </svg>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <p id="chosenName" style="font-size:13px;font-weight:600;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></p>
+          <p id="chosenSize" style="font-size:11px;color:var(--muted);margin-top:2px;"></p>
+        </div>
+        <button id="clearBtn" type="button"
+          style="background:none;border:none;color:var(--muted);cursor:pointer;padding:6px;border-radius:6px;transition:color .2s;"
+          onmouseover="this.style.color='#ff4444'" onmouseout="this.style.color='var(--muted)'">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <input type="file" id="fileInput" accept="video/*" style="display:none;" />
+
+    <div style="margin-top:16px;text-align:center;">
+      <button id="analyzeBtn" type="button" disabled onclick="analyzeVideo()">
+        ▶&nbsp;&nbsp;ANALYZE VIDEO
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loadingSection" class="hidden card fade-up" style="padding:24px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--neon);
+                  box-shadow:0 0 8px var(--neon);animation:ping 1s ease-in-out infinite;"></div>
+      <span id="loadingStatus" class="neon" style="font-size:12px;font-weight:700;letter-spacing:.1em;">INITIALIZING...</span>
+    </div>
+    <div class="prog-track" style="margin-bottom:20px;">
+      <div id="progressBar" class="prog-fill" style="width:0%;"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+      <div class="agent-card" id="ag0">
+        <div style="font-size:20px;margin-bottom:4px;">🎬</div>
+        <div style="font-size:10px;color:var(--muted);font-weight:600;">FRAME ANALYZER</div>
+        <div class="a-status">Waiting...</div>
+      </div>
+      <div class="agent-card" id="ag1">
+        <div style="font-size:20px;margin-bottom:4px;">👤</div>
+        <div style="font-size:10px;color:var(--muted);font-weight:600;">FACE DETECTOR</div>
+        <div class="a-status">Waiting...</div>
+      </div>
+      <div class="agent-card" id="ag2">
+        <div style="font-size:20px;margin-bottom:4px;">🧠</div>
+        <div style="font-size:10px;color:var(--muted);font-weight:600;">DECISION AGENT</div>
+        <div class="a-status">Waiting...</div>
+      </div>
+      <div class="agent-card" id="ag3">
+        <div style="font-size:20px;margin-bottom:4px;">📊</div>
+        <div style="font-size:10px;color:var(--muted);font-weight:600;">REPORT GEN</div>
+        <div class="a-status">Waiting...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div id="resultSection" class="hidden fade-up" style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Verdict -->
+    <div id="verdictCard" style="padding:28px 32px;">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:28px;">
+
+        <!-- Badge + label -->
+        <div style="text-align:center;flex-shrink:0;">
+          <div id="verdictBadge" class="verdict-badge" style="margin:0 auto 10px;">
+            <span id="verdictEmoji"></span>
+          </div>
+          <div id="verdictLabel" style="font-size:28px;font-weight:700;letter-spacing:.15em;"></div>
+          <div style="font-size:10px;color:var(--muted);letter-spacing:.1em;margin-top:3px;">VERDICT</div>
+        </div>
+
+        <!-- Confidence + risk -->
+        <div style="flex:1;min-width:220px;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+            <span style="font-size:11px;color:var(--muted);letter-spacing:.08em;">CONFIDENCE SCORE</span>
+            <span id="confValue" style="font-size:32px;font-weight:700;"></span>
+          </div>
+          <div class="conf-track" style="margin-bottom:18px;">
+            <div id="confBar" class="conf-fill" style="width:0%;"></div>
+          </div>
+
+          <!-- Risk meter -->
+          <div style="margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:10px;color:var(--muted);letter-spacing:.08em;">RISK LEVEL</span>
+            <span id="riskLabel" style="font-size:10px;font-weight:700;letter-spacing:.08em;"></span>
+          </div>
+          <div class="risk-meter">
+            <div id="riskNeedle" class="risk-needle" style="left:50%;"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px;">
+            <span style="font-size:9px;color:var(--muted);">LOW</span>
+            <span style="font-size:9px;color:var(--muted);">MEDIUM</span>
+            <span style="font-size:9px;color:var(--muted);">HIGH</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Insights + Meta -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+      <div class="card" style="padding:18px;">
+        <div class="sec-label" style="margin-bottom:14px;">ANALYSIS INSIGHTS</div>
+        <div id="detailsList" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+
+      <div class="card" style="padding:18px;">
+        <div class="sec-label" style="margin-bottom:14px;">VIDEO METADATA</div>
+        <div id="metaGrid"></div>
+
+        <!-- Model info -->
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+          <div class="sec-label" style="margin-bottom:10px;">DETECTION ENGINE</div>
+          <div style="font-size:10px;color:var(--muted);line-height:1.8;">
+            <div>🔬 dima806/deepfake_vs_real (99.3% acc)</div>
+            <div>🔬 prithivMLmods/Detector-v2 (92.1% acc)</div>
+            <div style="margin-top:4px;color:#00ff8877;">⚡ Weighted ensemble · ViT architecture</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Frame Timeline -->
+    <div class="card" style="padding:18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <div class="sec-label">FRAME-BY-FRAME TIMELINE</div>
+        <div style="display:flex;align-items:center;gap:14px;font-size:10px;color:var(--muted);">
+          <span style="display:flex;align-items:center;gap:5px;">
+            <span style="width:10px;height:10px;border-radius:2px;background:var(--neon);display:inline-block;"></span>REAL
+          </span>
+          <span style="display:flex;align-items:center;gap:5px;">
+            <span style="width:10px;height:10px;border-radius:2px;background:var(--red);display:inline-block;"></span>FAKE
+          </span>
+          <span style="display:flex;align-items:center;gap:5px;">
+            <span style="width:20px;height:1px;background:#facc1566;display:inline-block;"></span>60% THRESHOLD
+          </span>
+        </div>
+      </div>
+      <div id="timelineChart"></div>
+    </div>
+
+    <div style="text-align:center;">
+      <button onclick="resetAll()" type="button"
+        style="background:none;border:1px solid var(--border);color:var(--muted);
+               font-family:inherit;font-size:12px;letter-spacing:.1em;padding:10px 24px;
+               border-radius:8px;cursor:pointer;transition:all .2s;"
+        onmouseover="this.style.borderColor='#00ff8844';this.style.color='var(--neon)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+        ↺ &nbsp;ANALYZE ANOTHER VIDEO
+      </button>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div id="errorSection" class="hidden card fade-up"
+       style="padding:20px;border-color:#ff444433;background:#ff44440a;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span style="font-size:18px;">⚠️</span>
+      <span style="color:var(--red);font-weight:700;font-size:13px;letter-spacing:.08em;">ANALYSIS FAILED</span>
+    </div>
+    <p id="errorMsg" style="font-size:12px;color:var(--muted);line-height:1.6;"></p>
+    <button onclick="resetAll()" type="button"
+      style="margin-top:12px;background:none;border:none;color:var(--muted);
+             font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:.08em;"
+      onmouseover="this.style.color='var(--neon)'" onmouseout="this.style.color='var(--muted)'">
+      ↺ Try again
+    </button>
+  </div>
+
+</main>
+
+<footer style="border-top:1px solid var(--border);padding:20px;text-align:center;
+               font-size:10px;color:#334155;letter-spacing:.12em;margin-top:20px;">
+  DEEPFAKE AUTHENTICATOR &nbsp;·&nbsp; MEDIAPIPE + ENSEMBLE ViT &nbsp;·&nbsp; LOCAL INFERENCE
+</footer>
+
+<style>
+  @keyframes ping {
+    0%,100% { transform:scale(1); opacity:1; }
+    50%      { transform:scale(1.5); opacity:.5; }
+  }
+  @media (max-width: 640px) {
+    #verdictCard > div { flex-direction: column !important; }
+    #resultSection > div:nth-child(2) { grid-template-columns: 1fr !important; }
+  }
+</style>
+
+<script src="script.js"></script>
+</body>
+</html>

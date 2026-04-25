@@ -1,0 +1,45 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Uploads (temp video files)
+backend/uploads/
+
+# HuggingFace model cache (large, re-downloads automatically)
+# Uncomment below if you want to exclude the cache too
+# ~/.cache/huggingface/
+
+# Environment
+.env
+.env.local
+*.env
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Test artifacts
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
