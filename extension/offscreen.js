@@ -39,7 +39,7 @@ async function startRecording(streamId, durationMs, tabId) {
   const mimeType = getSupportedMimeType();
   const recorder = new MediaRecorder(stream, {
     mimeType,
-    videoBitsPerSecond: 5_000_000,  // Increased from 2.5Mbps for better quality
+    videoBitsPerSecond: 4_000_000,  // 4Mbps — good quality, smaller file
   });
   activeRecorder = recorder;
 

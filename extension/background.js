@@ -9,8 +9,8 @@
  *   5. Result is sent to the content script overlay on the original tab
  */
 
-const API_BASE    = 'https://aarav13-authrix.hf.space';
-const CAPTURE_SEC = 20;   // Increased from 12s for more sample frames
+const API_BASE    = 'http://localhost:8000';
+const CAPTURE_SEC = 8;   // Reduced from 20s — 8s gives enough frames for accurate detection
 const OFFSCREEN_URL = chrome.runtime.getURL('offscreen.html');
 
 // ── Context menu ──────────────────────────────────────────────────────────────

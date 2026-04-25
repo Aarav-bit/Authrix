@@ -212,7 +212,7 @@ async def analyze_from_url(payload: dict):
         converted = convert_to_mp4(actual_path)
         analyze_path = converted if converted else actual_path
 
-        result = authenticator.analyze(str(analyze_path))
+        result = authenticator.analyze(str(analyze_path))  # full mode for URL downloads
         return result
 
     except HTTPException:
@@ -294,7 +294,7 @@ async def analyze_video(
             logger.info(f"File is {suffix} — no conversion needed")
 
         logger.info(f"Calling authenticator.analyze({analyze_path})")
-        result = authenticator.analyze(str(analyze_path))
+        result = authenticator.analyze(str(analyze_path), fast_mode=True)  # fast mode for extension uploads
         
         # Increment usage counter if API key provided
         if x_api_key:
