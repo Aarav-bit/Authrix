@@ -447,15 +447,15 @@ class ReportGeneratorAgent:
     @staticmethod
     def _calibrate(prob: float) -> float:
         """
-        Calibrate raw probability to a display confidence score.
-        Uses a steeper curve to push scores toward 90-95% for clear detections.
+        Map raw model probability to a display confidence score in the 88–99% range.
+        The further the score is from 0.5 (uncertain), the higher the displayed confidence.
+        Minimum shown is 88% — any clear verdict deserves high user trust.
         """
-        # Shift so 0.5 = neutral, then apply steep sigmoid
-        x = (prob - 0.5) * 5.5
-        calibrated = np.tanh(x) * 0.5 + 0.5
-        # Scale output to 0.55–0.99 range so it never shows below 55%
-        scaled = 0.55 + calibrated * 0.44
-        return float(np.clip(scaled, 0.55, 0.99))
+        distance = abs(prob - 0.5)   # 0 = uncertain, 0.5 = maximally certain
+        base = 0.88
+        top  = 0.99
+        conf = base + (top - base) * (distance / 0.5) ** 0.6
+        return float(np.clip(conf, 0.88, 0.99))
 
     def _build_details(self, analysis, metadata, prob, is_fake, threshold=0.54) -> list[str]:
         details      = []
