@@ -33,9 +33,8 @@ backend/uploads/
 Thumbs.db
 desktop.ini
 
-# Logs
-*.log
-logs/
+# Stitch design files (not needed for deployment)
+stitch_authrix_deepfake_detection_engine/
 
 # Test artifacts
 *.mp4
