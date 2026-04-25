@@ -623,12 +623,13 @@ class DeepfakeAuthenticator:
         # Step 3: Visual decision
         analysis = self.decision_agent.analyze_frames(frames, face_crops_per_frame)
 
-        # Step 4: Audio analysis (parallel-ish — runs after visual)
+        # Step 4: Audio analysis — pass visual prob for mismatch detection
         audio_result = {"available": False, "result": "NO_AUDIO", "confidence": 0, "details": []}
         audio_agent = self._get_audio()
         if audio_agent:
             try:
-                audio_result = audio_agent.analyze(video_path)
+                visual_prob = analysis.get("overall_fake_probability", 0.5)
+                audio_result = audio_agent.analyze(video_path, visual_fake_prob=visual_prob)
             except Exception as e:
                 logger.warning(f"Audio analysis failed: {e}")
 

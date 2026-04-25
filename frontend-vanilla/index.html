@@ -223,21 +223,24 @@
   }
   .tl-tooltip {
     position: absolute;
-    bottom: calc(100% + 6px);
+    bottom: calc(100% + 8px);
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(10,10,20,0.95);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: #0a0f0a;
+    border: 1px solid #00ff9c;
     border-radius: 4px;
-    padding: 3px 7px;
-    font-size: 10px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 700;
     white-space: nowrap;
     pointer-events: none;
     opacity: 0;
-    transition: all 0.2s ease;
-    z-index: 20;
-    font-family: 'Space Grotesk', sans-serif;
-    color: #dae5da;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 100;
+    font-family: 'Space Grotesk', monospace;
+    color: #ffffff !important;
+    letter-spacing: 0.05em;
+    box-shadow: 0 0 10px rgba(0,255,156,0.3);
   }
 
   /* ── Scrollbar ── */
@@ -668,7 +671,7 @@
         <span class="font-data-mono text-[9px] text-outline">0%</span>
       </div>
       <!-- Bars container -->
-      <div id="timelineBars" class="h-[160px] flex items-end gap-[2px] border-b border-l border-surface-variant pl-8 relative z-10 overflow-hidden">
+      <div id="timelineBars" class="flex items-end gap-[2px] border-b border-l border-surface-variant pl-8 relative z-10" style="height:160px;overflow:visible;">
         <!-- Populated by JS -->
       </div>
     </div>
@@ -1147,19 +1150,19 @@ function renderInsightCards(details, isFake, conf) {
 function renderMetaTerminal(data) {
   const meta = data.metadata || {};
   const rows = [
-    ['RESULT',        data.result || '--'],
-    ['FRAMES_ANALYZED', meta.frames_analyzed ?? '--'],
-    ['FACES_DETECTED',  meta.frames_with_faces ?? '--'],
-    ['DURATION',        meta.video_duration_sec != null ? meta.video_duration_sec.toFixed(1) + 's' : '--'],
-    ['FPS',             meta.video_fps ?? '--'],
-    ['RESOLUTION',      meta.resolution || '--'],
-    ['PROC_TIME',       data.processing_time_sec != null ? data.processing_time_sec.toFixed(2) + 's' : '--'],
+    ['RESULT',           data.result || '--'],
+    ['FRAMES_ANALYZED',  meta.frames_analyzed ?? '--'],
+    ['FACES_DETECTED',   meta.frames_with_faces ?? '--'],
+    ['DURATION',         meta.video_duration_sec != null ? meta.video_duration_sec.toFixed(1) + 's' : '--'],
+    ['FPS',              meta.video_fps ?? '--'],
+    ['RESOLUTION',       meta.resolution || '--'],
+    ['PROC_TIME',        data.processing_time_sec != null ? data.processing_time_sec.toFixed(2) + 's' : '--'],
   ];
 
   const html = rows.map(([k, v]) => `
-    <div class="flex">
-      <span class="text-outline w-36 shrink-0">${k}:</span>
-      <span class="text-on-surface">${escHtml(String(v))}</span>
+    <div class="flex items-baseline gap-0">
+      <span class="text-outline shrink-0" style="width:11rem;min-width:11rem;">${k}:</span>
+      <span class="text-on-surface font-semibold">${escHtml(String(v))}</span>
     </div>`).join('') + `
     <div class="my-3 border-t border-surface-variant/30 border-dashed"></div>
     <div class="text-primary-container opacity-80">&gt; INIT NEURAL_NET_V4.2</div>
@@ -1189,17 +1192,19 @@ function renderTimeline(frames) {
   const maxH   = 140; // px
 
   container.innerHTML = subset.map(f => {
-    const pct    = typeof f.fake_pct === 'number' ? f.fake_pct : 0;
-    const heightPct = Math.max(1.5, pct);
-    const isHigh = pct > 60;
-    const barBg  = isHigh ? '#ffb4ab' : '#00ff9c';
-    const barGlow = isHigh
-      ? 'box-shadow:0 0 8px rgba(255,180,171,0.5);'
-      : 'box-shadow:0 0 6px rgba(0,255,156,0.3);';
+    const pct       = typeof f.fake_pct === 'number' ? f.fake_pct : 0;
+    const barH      = Math.max(3, Math.round((pct / 100) * maxH));  // px, not %
+    const isHigh    = pct >= 60;
+    const barBg     = isHigh ? '#ffb4ab' : '#00ff9c';
+    const barGlow   = isHigh
+      ? 'box-shadow:0 0 8px rgba(255,180,171,0.6);'
+      : 'box-shadow:0 0 6px rgba(0,255,156,0.4);';
+    const tipLabel  = isHigh ? `⚠ ${pct.toFixed(1)}%` : `✓ ${pct.toFixed(1)}%`;
+    const tipBorder = isHigh ? '#ffb4ab' : '#00ff9c';
     return `
-      <div class="tl-bar" style="height:${maxH}px;position:relative;">
-        <div class="tl-tooltip">F${f.frame}: ${pct.toFixed(1)}%</div>
-        <div style="position:absolute;bottom:0;left:0;right:0;height:${heightPct}%;background:${barBg};${barGlow}border-radius:2px 2px 0 0;"></div>
+      <div class="tl-bar" style="height:${maxH}px;position:relative;flex:1;min-width:6px;max-width:20px;">
+        <div class="tl-tooltip" style="border-color:${tipBorder};">${tipLabel}</div>
+        <div style="position:absolute;bottom:0;left:1px;right:1px;height:${barH}px;background:${barBg};${barGlow}border-radius:2px 2px 0 0;"></div>
       </div>`;
   }).join('');
 
@@ -1212,18 +1217,22 @@ function renderTimeline(frames) {
 
 // ── Audio section ─────────────────────────────────────────────────────────────
 function renderAudio(audio) {
-  const isAI = audio.result === 'AI_VOICE';
+  const isAI       = audio.result === 'AI_VOICE';
+  const isMismatch = audio.result === 'AV_MISMATCH';
+  const color      = isMismatch ? '#ffdd65' : (isAI ? '#ffb4ab' : '#00ff9c');
 
   const icon = document.getElementById('audioIcon');
-  icon.textContent = isAI ? 'smart_toy' : 'record_voice_over';
-  icon.style.color = isAI ? '#ffb4ab' : '#00ff9c';
+  icon.textContent = isMismatch ? 'warning' : (isAI ? 'smart_toy' : 'record_voice_over');
+  icon.style.color = color;
 
   const verdict = document.getElementById('audioVerdict');
-  verdict.textContent = audio.result || '--';
-  verdict.style.color = isAI ? '#ffb4ab' : '#00ff9c';
+  verdict.textContent = isMismatch ? '⚠ AV MISMATCH' : (audio.result || '--');
+  verdict.style.color = color;
 
   document.getElementById('audioConfidence').textContent =
-    `Confidence: ${typeof audio.confidence === 'number' ? audio.confidence.toFixed(1) + '%' : '--'}`;
+    isMismatch
+      ? 'Face-swap: voice is human but face is manipulated'
+      : `Confidence: ${typeof audio.confidence === 'number' ? audio.confidence.toFixed(1) + '%' : '--'}`;
 
   const modelScore = typeof audio.model_score === 'number' ? audio.model_score : 0;
   const heurScore  = typeof audio.heuristic_score === 'number' ? audio.heuristic_score : 0;
@@ -1233,13 +1242,14 @@ function renderAudio(audio) {
   document.getElementById('audioHeuristicBar').style.width = heurScore + '%';
   document.getElementById('audioHeuristicScore').textContent = heurScore.toFixed(1) + '%';
 
-  // Audio details
+  // Audio details — highlight mismatch details in yellow
   const detailsEl = document.getElementById('audioDetails');
   if (audio.details && audio.details.length) {
     detailsEl.innerHTML = audio.details.map(d => `
-      <div class="flex items-start gap-3 p-3 bg-surface-container-low/50 border border-outline-variant/30 rounded-DEFAULT">
-        <span class="material-symbols-outlined text-on-surface-variant text-[16px] mt-0.5">chevron_right</span>
-        <span class="font-data-mono text-data-mono text-on-surface-variant text-sm">${escHtml(d)}</span>
+      <div class="flex items-start gap-3 p-3 bg-surface-container-low/50 border border-outline-variant/30 rounded-DEFAULT"
+           style="${isMismatch ? 'border-color:rgba(255,221,101,0.3);background:rgba(255,221,101,0.05);' : ''}">
+        <span class="material-symbols-outlined text-[16px] mt-0.5" style="color:${color};">${isMismatch ? 'warning' : 'chevron_right'}</span>
+        <span class="font-data-mono text-data-mono text-sm" style="color:${isMismatch ? '#ffdd65cc' : '#b9cbbc'};">${escHtml(d)}</span>
       </div>`).join('');
   } else {
     detailsEl.innerHTML = '';

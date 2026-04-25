@@ -221,44 +221,47 @@ class AudioAnalysisAgent:
 # Wav2Vec2 model for AI voice detection
 # ─────────────────────────────────────────────
 class AudioDecisionAgent:
-    MODEL_ID   = "Bisher/wav2vec2_ASV_deepfake_audio_detection"
-    CHUNK_SEC  = 10     # Process in 10-second chunks (model limit)
+    # Primary: ASVspoof-trained model with bonafide/spoof labels
+    MODEL_ID   = "Vansh180/deepfake-audio-wav2vec2"
+    CHUNK_SEC  = 10
     TARGET_SR  = 16000
 
     def __init__(self):
         self.model     = None
         self.processor = None
-        self.fake_idx  = 0   # label 0 = 'fake'
+        self.fake_idx  = 1   # default: label 1 = spoof/fake
         self.available = False
         self._load()
 
     def _load(self):
         try:
             from transformers import (
-                Wav2Vec2ForSequenceClassification,
-                Wav2Vec2Processor,
+                AutoModelForAudioClassification,
+                AutoFeatureExtractor,
             )
             logger.info(f"Loading audio model: {self.MODEL_ID}")
-            self.processor = Wav2Vec2Processor.from_pretrained(self.MODEL_ID)
-            self.model     = Wav2Vec2ForSequenceClassification.from_pretrained(self.MODEL_ID)
+            self.processor = AutoFeatureExtractor.from_pretrained(self.MODEL_ID)
+            self.model     = AutoModelForAudioClassification.from_pretrained(self.MODEL_ID)
             self.model.eval()
 
-            # Confirm fake label index
+            # Find fake/spoof label index
             for idx, lbl in self.model.config.id2label.items():
-                if lbl.lower() == "fake":
+                lbl_lower = lbl.lower()
+                if any(w in lbl_lower for w in ("fake", "spoof", "synthetic", "generated")):
                     self.fake_idx = idx
                     break
 
             self.available = True
-            logger.info(f"Audio model loaded — fake_idx={self.fake_idx}, labels={self.model.config.id2label}")
+            logger.info(
+                f"Audio model loaded — labels={self.model.config.id2label} "
+                f"fake_idx={self.fake_idx}"
+            )
         except Exception as e:
             logger.warning(f"Audio model unavailable: {e}")
             self.available = False
 
     def predict(self, waveform: np.ndarray, sr: int) -> float:
-        """
-        Run Wav2Vec2 on audio in chunks, return mean fake probability.
-        """
+        """Run model on audio chunks, return mean fake probability."""
         if not self.available:
             return 0.5
 
@@ -268,7 +271,7 @@ class AudioDecisionAgent:
         chunks = [
             waveform[i : i + chunk_size]
             for i in range(0, len(waveform), chunk_size)
-            if len(waveform[i : i + chunk_size]) > sr // 2  # skip < 0.5s chunks
+            if len(waveform[i : i + chunk_size]) > sr // 2
         ]
 
         if not chunks:
@@ -310,6 +313,7 @@ class AudioReportAgent:
         model_prob: float,
         heuristic: dict,
         has_audio: bool,
+        visual_fake_prob: float = 0.5,
     ) -> dict:
         if not has_audio:
             return {
@@ -329,21 +333,46 @@ class AudioReportAgent:
         else:
             combined = model_prob
 
+        # ── Audio-Visual Mismatch Boost ───────────────────────────────
+        # Key insight: in face-swap deepfakes, the FACE is fake but the
+        # VOICE is real (dubbed from original footage). This mismatch
+        # is itself a strong deepfake signal.
+        # If visual says FAKE (high prob) but audio says HUMAN → mismatch
+        av_mismatch = False
+        av_mismatch_score = 0.0
+        if visual_fake_prob >= 0.55 and model_prob < 0.50:
+            # Visual strongly fake, audio sounds human → classic face-swap
+            av_mismatch = True
+            av_mismatch_score = visual_fake_prob * 0.6
+            # Boost audio fake probability to reflect the mismatch
+            combined = max(combined, av_mismatch_score)
+            logger.info(
+                f"Audio-visual mismatch detected: visual_fake={visual_fake_prob:.2f} "
+                f"audio_fake={model_prob:.2f} → boosted to {combined:.2f}"
+            )
+
         combined   = float(np.clip(combined, 0.0, 1.0))
         is_fake    = combined >= self.FAKE_THRESHOLD
         confidence = round(combined * 100, 1)
 
-        details = self._build_details(combined, is_fake, features, model_prob, heur_prob)
+        details = self._build_details(
+            combined, is_fake, features, model_prob, heur_prob, av_mismatch
+        )
+
+        result_label = "AI_VOICE" if is_fake else "HUMAN_VOICE"
+        if av_mismatch:
+            result_label = "AV_MISMATCH"  # special label for face-swap case
 
         return {
-            "available":       True,
-            "result":          "AI_VOICE" if is_fake else "HUMAN_VOICE",
-            "confidence":      confidence,
+            "available":        True,
+            "result":           result_label,
+            "confidence":       confidence,
             "fake_probability": round(combined, 4),
-            "model_score":     round(model_prob * 100, 1),
-            "heuristic_score": round(heur_prob * 100, 1),
-            "details":         details,
-            "features":        features,
+            "model_score":      round(model_prob * 100, 1),
+            "heuristic_score":  round(heur_prob * 100, 1),
+            "av_mismatch":      av_mismatch,
+            "details":          details,
+            "features":         features,
         }
 
     def _build_details(
@@ -353,8 +382,25 @@ class AudioReportAgent:
         features: dict,
         model_prob: float,
         heur_prob: float,
+        av_mismatch: bool = False,
     ) -> list[str]:
         details = []
+
+        # Audio-visual mismatch is the most important signal
+        if av_mismatch:
+            details.append(
+                "⚠️ Audio-visual mismatch detected — face appears manipulated but voice is human. "
+                "This is the hallmark of face-swap deepfakes where original audio is preserved."
+            )
+            details.append(
+                "Voice is authentic human speech, but does NOT match the manipulated face — "
+                "consistent with dubbed deepfake video (e.g. movie scene re-faced)"
+            )
+            details.append(
+                f"Visual deepfake confidence was high while voice model scored {(1-model_prob)*100:.1f}% human — "
+                "strong indicator of face-swap rather than full synthesis"
+            )
+            return details
 
         if is_fake:
             if prob > 0.85:
@@ -366,17 +412,26 @@ class AudioReportAgent:
 
             pitch_std = features.get("pitch_std_hz")
             if pitch_std is not None and pitch_std < 15:
-                details.append(f"Unnaturally stable pitch (σ={pitch_std}Hz) — human speech typically varies 20-80Hz")
+                details.append(
+                    f"Unnaturally stable pitch (σ={pitch_std}Hz) — "
+                    "human speech typically varies 20-80Hz"
+                )
 
             delta_var = features.get("mfcc_delta_var")
             if delta_var is not None and delta_var < 1.5:
-                details.append("Insufficient micro-variation in articulation — characteristic of TTS synthesis")
+                details.append(
+                    "Insufficient micro-variation in articulation — "
+                    "characteristic of TTS synthesis"
+                )
 
             silence = features.get("silence_ratio")
             if silence is not None and silence < 0.05:
-                details.append("No natural breath pauses detected — AI voices lack organic speech rhythm")
+                details.append(
+                    "No natural breath pauses detected — "
+                    "AI voices lack organic speech rhythm"
+                )
 
-            details.append(f"Wav2Vec2 model confidence: {model_prob*100:.1f}% synthetic")
+            details.append(f"ASVspoof model confidence: {model_prob*100:.1f}% synthetic")
         else:
             if prob < 0.25:
                 details.append("Strong indicators of authentic human voice")
@@ -389,9 +444,11 @@ class AudioReportAgent:
 
             silence = features.get("silence_ratio")
             if silence is not None and 0.05 <= silence <= 0.35:
-                details.append("Natural speech rhythm with organic pauses and breath sounds")
+                details.append(
+                    "Natural speech rhythm with organic pauses and breath sounds"
+                )
 
-            details.append(f"Wav2Vec2 model confidence: {(1-model_prob)*100:.1f}% human")
+            details.append(f"ASVspoof model confidence: {(1-model_prob)*100:.1f}% human")
 
         return details
 
@@ -406,7 +463,7 @@ class AudioAuthenticator:
         self.decision  = AudioDecisionAgent()
         self.reporter  = AudioReportAgent()
 
-    def analyze(self, video_path: str) -> dict:
+    def analyze(self, video_path: str, visual_fake_prob: float = 0.5) -> dict:
         # Step 1: Extract audio
         waveform, sr = self.extractor.extract(video_path)
 
@@ -419,5 +476,8 @@ class AudioAuthenticator:
         # Step 3: Model prediction
         model_prob = self.decision.predict(waveform, sr)
 
-        # Step 4: Report
-        return self.reporter.generate(model_prob, heuristic, has_audio=True)
+        # Step 4: Report (pass visual prob for mismatch detection)
+        return self.reporter.generate(
+            model_prob, heuristic, has_audio=True,
+            visual_fake_prob=visual_fake_prob,
+        )
