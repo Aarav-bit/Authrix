@@ -887,9 +887,9 @@ class ReportGeneratorAgent:
         temporal_score = temporal.get("temporal_fake_score", 0.5)
         temporal_conf = temporal.get("confidence", 0.0)
         
-        # If temporal detected strong artifacts, lower threshold
+        # If temporal detected strong artifacts, lower threshold significantly
         if temporal_score > 0.65 and temporal_conf > 0.85:
-            threshold -= 0.10  # Lower threshold when temporal is confident
+            threshold -= 0.18  # Aggressive threshold reduction for high-confidence temporal detection
             logger.info(f"Strong temporal artifacts detected → threshold lowered to {threshold:.3f}")
         elif consistency >= 0.70 and coverage >= 0.50:
             threshold -= 0.06
