@@ -224,33 +224,141 @@ class FrameAnalyzerAgent:
 # ─────────────────────────────────────────────
 # Agent 2: Face Detector Agent
 # Single MediaPipe context for all frames
+# Phase 3: Face detection caching across chunks
 # ─────────────────────────────────────────────
 class FaceDetectorAgent:
     def __init__(self, min_detection_confidence: float = 0.3):
         self.mp_face_detection = mp.solutions.face_detection
         self.min_confidence    = min_detection_confidence
+        self.blur_threshold    = 40  # Laplacian variance threshold for quality check
+
+    def _is_quality_crop(self, crop: np.ndarray) -> bool:
+        """Check if crop has sufficient sharpness (not blurry)."""
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        return cv2.Laplacian(gray, cv2.CV_64F).var() >= self.blur_threshold
+
+    def _extract_crop_from_bbox(self, frame: np.ndarray, bbox_coords: tuple, padding: float = 0.2) -> np.ndarray:
+        """Extract and resize face crop from frame using cached bbox coordinates."""
+        x1, y1, x2, y2 = bbox_coords
+        h, w = frame.shape[:2]
+        # Apply padding
+        width = x2 - x1
+        height = y2 - y1
+        x1 = max(0, int(x1 - padding * width))
+        y1 = max(0, int(y1 - padding * height))
+        x2 = min(w, int(x2 + padding * width))
+        y2 = min(h, int(y2 + padding * height))
+        
+        if x2 > x1 and y2 > y1:
+            return cv2.resize(frame[y1:y2, x1:x2], (224, 224))
+        return None
 
     def detect_all_frames(self, frames: list[np.ndarray], padding: float = 0.2) -> list[list[np.ndarray]]:
+        """
+        Phase 3 optimization: Cache face bounding boxes across chunks.
+        - Run full MediaPipe detection only on first frame
+        - Reuse cached bbox for subsequent frames
+        - Re-detect only if crop quality is poor (blur check fails)
+        """
+        if not frames:
+            return []
+        
         results_per_frame = []
+        cached_bboxes = None  # Store bbox coordinates from first frame
+        detections_run = 0
+        cache_hits = 0
+        
         with self.mp_face_detection.FaceDetection(
             min_detection_confidence=self.min_confidence
         ) as detector:
-            for frame in frames:
+            for frame_idx, frame in enumerate(frames):
                 crops = []
-                h, w  = frame.shape[:2]
-                rgb   = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                result = detector.process(rgb)
-                if result.detections:
-                    for detection in result.detections:
-                        bbox = detection.location_data.relative_bounding_box
-                        x1 = max(0, int((bbox.xmin - padding * bbox.width) * w))
-                        y1 = max(0, int((bbox.ymin - padding * bbox.height) * h))
-                        x2 = min(w, int((bbox.xmin + bbox.width * (1 + padding)) * w))
-                        y2 = min(h, int((bbox.ymin + bbox.height * (1 + padding)) * h))
-                        if x2 > x1 and y2 > y1:
-                            crop = cv2.resize(frame[y1:y2, x1:x2], (224, 224))
-                            crops.append(crop)
+                h, w = frame.shape[:2]
+                
+                # First frame OR cache failed quality check → run full detection
+                if cached_bboxes is None or frame_idx == 0:
+                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    result = detector.process(rgb)
+                    detections_run += 1
+                    
+                    if result.detections:
+                        # Store bbox coordinates for caching
+                        cached_bboxes = []
+                        for detection in result.detections:
+                            bbox = detection.location_data.relative_bounding_box
+                            # Store absolute pixel coordinates (no padding yet)
+                            x1 = int(bbox.xmin * w)
+                            y1 = int(bbox.ymin * h)
+                            x2 = int((bbox.xmin + bbox.width) * w)
+                            y2 = int((bbox.ymin + bbox.height) * h)
+                            cached_bboxes.append((x1, y1, x2, y2))
+                            
+                            # Extract crop with padding
+                            x1_pad = max(0, int((bbox.xmin - padding * bbox.width) * w))
+                            y1_pad = max(0, int((bbox.ymin - padding * bbox.height) * h))
+                            x2_pad = min(w, int((bbox.xmin + bbox.width * (1 + padding)) * w))
+                            y2_pad = min(h, int((bbox.ymin + bbox.height * (1 + padding)) * h))
+                            
+                            if x2_pad > x1_pad and y2_pad > y1_pad:
+                                crop = cv2.resize(frame[y1_pad:y2_pad, x1_pad:x2_pad], (224, 224))
+                                crops.append(crop)
+                    else:
+                        cached_bboxes = None
+                
+                # Subsequent frames → try using cached bboxes
+                else:
+                    redetect_needed = False
+                    for bbox_coords in cached_bboxes:
+                        crop = self._extract_crop_from_bbox(frame, bbox_coords, padding)
+                        if crop is not None:
+                            # Quality check: if crop is blurry, invalidate cache
+                            if self._is_quality_crop(crop):
+                                crops.append(crop)
+                                cache_hits += 1
+                            else:
+                                # Poor quality → need to re-detect
+                                redetect_needed = True
+                                break
+                        else:
+                            redetect_needed = True
+                            break
+                    
+                    # Cache failed quality check → re-run detection
+                    if redetect_needed:
+                        crops = []
+                        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        result = detector.process(rgb)
+                        detections_run += 1
+                        
+                        if result.detections:
+                            cached_bboxes = []
+                            for detection in result.detections:
+                                bbox = detection.location_data.relative_bounding_box
+                                x1 = int(bbox.xmin * w)
+                                y1 = int(bbox.ymin * h)
+                                x2 = int((bbox.xmin + bbox.width) * w)
+                                y2 = int((bbox.ymin + bbox.height) * h)
+                                cached_bboxes.append((x1, y1, x2, y2))
+                                
+                                x1_pad = max(0, int((bbox.xmin - padding * bbox.width) * w))
+                                y1_pad = max(0, int((bbox.ymin - padding * bbox.height) * h))
+                                x2_pad = min(w, int((bbox.xmin + bbox.width * (1 + padding)) * w))
+                                y2_pad = min(h, int((bbox.ymin + bbox.height * (1 + padding)) * h))
+                                
+                                if x2_pad > x1_pad and y2_pad > y1_pad:
+                                    crop = cv2.resize(frame[y1_pad:y2_pad, x1_pad:x2_pad], (224, 224))
+                                    crops.append(crop)
+                        else:
+                            cached_bboxes = None
+                
                 results_per_frame.append(crops)
+        
+        # Log cache performance
+        total_frames = len(frames)
+        cache_rate = (cache_hits / total_frames * 100) if total_frames > 0 else 0
+        logger.info(f"Face detection: {detections_run}/{total_frames} full detections, "
+                   f"{cache_hits} cache hits ({cache_rate:.1f}% cached)")
+        
         return results_per_frame
 
     def detect_and_crop_faces(self, frame: np.ndarray, padding: float = 0.2) -> list[np.ndarray]:
