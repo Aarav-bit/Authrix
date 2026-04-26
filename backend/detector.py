@@ -217,47 +217,8 @@ class FrameAnalyzerAgent:
             "height":       int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
         }
         meta["duration_sec"] = round(meta["total_frames"] / meta["fps"], 2) if meta["fps"] > 0 else 0
-        
-        # Detect phone video characteristics
-        meta["is_phone_video"] = self._detect_phone_video(meta)
-        
         cap.release()
         return meta
-    
-    def _detect_phone_video(self, meta: dict) -> bool:
-        """
-        Detect if video is likely from a phone camera based on resolution and aspect ratio.
-        Phone videos typically have:
-        - Vertical orientation (9:16) or square (1:1)
-        - Common phone resolutions: 1080x1920, 720x1280, 1080x1080
-        - 30fps or 60fps (not 24fps or 25fps which are professional)
-        """
-        width = meta.get("width", 0)
-        height = meta.get("height", 0)
-        fps = meta.get("fps", 0)
-        
-        if width == 0 or height == 0:
-            return False
-        
-        aspect_ratio = width / height
-        
-        # Vertical video (portrait mode)
-        if aspect_ratio < 0.75:  # More vertical than 4:3
-            return True
-        
-        # Square video (Instagram/Snapchat)
-        if 0.95 <= aspect_ratio <= 1.05:
-            return True
-        
-        # Common phone resolutions
-        phone_resolutions = [
-            (1080, 1920), (720, 1280), (1080, 1080),
-            (1920, 1080), (1280, 720),  # Landscape phone
-        ]
-        if (width, height) in phone_resolutions or (height, width) in phone_resolutions:
-            return True
-        
-        return False
 
 
 # ─────────────────────────────────────────────
@@ -489,9 +450,14 @@ class DecisionAgent:
             if not fake_probs:
                 results.append(self._heuristic_predict(crop))
             elif len(fake_probs) == 2:
-                results.append(fake_probs[0] * 0.55 + fake_probs[1] * 0.45)
+                # Weighted ensemble: give more weight to first model, less to second
+                # Reduce overall sensitivity to prevent false positives
+                ensemble_score = fake_probs[0] * 0.50 + fake_probs[1] * 0.40
+                # Apply conservative bias - shift scores toward "real"
+                ensemble_score = ensemble_score * 0.90
+                results.append(ensemble_score)
             else:
-                results.append(float(np.mean(fake_probs)))
+                results.append(float(np.mean(fake_probs)) * 0.90)
 
         return results
 
@@ -663,7 +629,7 @@ class DecisionAgent:
 # Agent 4: Report Generator Agent
 # ─────────────────────────────────────────────
 class ReportGeneratorAgent:
-    BASE_THRESHOLD = 0.58
+    BASE_THRESHOLD = 0.65  # Raised from 0.58 to reduce false positives
 
     def generate(self, analysis: dict, metadata: dict,
                  audio: dict | None = None,
@@ -672,25 +638,13 @@ class ReportGeneratorAgent:
         prob        = analysis["overall_fake_probability"]
         consistency = analysis.get("consistency", 0.5)
         coverage    = analysis.get("face_coverage", 0.5)
-        
-        # Phone video bias correction
-        is_phone = metadata.get("is_phone_video", False)
-        if is_phone:
-            # Phone videos tend to score higher on fake probability due to:
-            # - Heavy AI processing (HDR, beauty mode, noise reduction)
-            # - Different compression artifacts
-            # - Lower quality sensors
-            # Apply a bias correction to reduce false positives
-            original_prob = prob
-            prob = prob * 0.85  # Reduce by 15%
-            logger.info(f"Phone video detected: adjusted prob {original_prob:.3f} → {prob:.3f}")
 
         # ── C2PA hard override ────────────────────────────────────────────
         if metadata_result and metadata_result.get("is_ai_generated"):
             is_fake    = True
             calibrated = self._calibrate(max(prob, 0.80))
             details    = self._build_details(analysis, metadata, prob, True,
-                                             self.BASE_THRESHOLD, metadata_result, is_phone)
+                                             self.BASE_THRESHOLD, metadata_result)
             return {
                 "result": "FAKE",
                 "confidence": round(calibrated * 100, 1),
@@ -702,22 +656,21 @@ class ReportGeneratorAgent:
                     "video_duration_sec": metadata.get("duration_sec", 0),
                     "video_fps":          metadata.get("fps", 0),
                     "resolution": f"{metadata.get('width',0)}x{metadata.get('height',0)}",
-                    "is_phone_video": is_phone,
                 },
             }
 
         # ── Adaptive threshold ────────────────────────────────────────────
         threshold = self.BASE_THRESHOLD
-        if consistency >= 0.70 and coverage >= 0.50:
-            threshold -= 0.06
-        elif consistency >= 0.55:
-            threshold -= 0.03
-        elif consistency < 0.35:
-            threshold += 0.07
         
-        # Additional threshold adjustment for phone videos
-        if is_phone:
-            threshold += 0.08  # Raise threshold to reduce false positives
+        # More conservative thresholds based on consistency
+        if consistency >= 0.75 and coverage >= 0.60:
+            # Very high consistency - can be slightly more aggressive
+            threshold -= 0.04
+        elif consistency >= 0.60:
+            threshold -= 0.02
+        elif consistency < 0.40:
+            # Low consistency - be more conservative
+            threshold += 0.10
 
         visual_fake = prob >= threshold
 
@@ -736,7 +689,8 @@ class ReportGeneratorAgent:
             elif not visual_fake and not audio_fake:
                 is_fake = False
             elif visual_fake and not audio_fake:
-                is_fake = prob >= (threshold + 0.05)
+                # Visual says fake but audio says real - require higher confidence
+                is_fake = prob >= (threshold + 0.08)
             else:
                 is_fake = audio_prob >= 0.75
             calibrated = self._calibrate(prob)
@@ -746,9 +700,9 @@ class ReportGeneratorAgent:
 
         confidence = round(calibrated * 100, 1)
         result     = "FAKE" if is_fake else "REAL"
-        logger.info(f"Decision: prob={prob:.3f} threshold={threshold:.3f} phone={is_phone} → {result}")
+        logger.info(f"Decision: prob={prob:.3f} threshold={threshold:.3f} → {result}")
 
-        details        = self._build_details(analysis, metadata, prob, is_fake, threshold, None, is_phone)
+        details        = self._build_details(analysis, metadata, prob, is_fake, threshold)
         frame_timeline = self._build_timeline(analysis.get("frame_scores", []))
 
         return {
@@ -760,7 +714,6 @@ class ReportGeneratorAgent:
                 "video_duration_sec": metadata.get("duration_sec", 0),
                 "video_fps":          metadata.get("fps", 0),
                 "resolution": f"{metadata.get('width',0)}x{metadata.get('height',0)}",
-                "is_phone_video": is_phone,
             },
         }
 
@@ -772,7 +725,7 @@ class ReportGeneratorAgent:
         return float(np.clip(conf, 0.88, 0.99))
 
     def _build_details(self, analysis, metadata, prob, is_fake,
-                       threshold=0.58, metadata_result=None, is_phone=False) -> list[str]:
+                       threshold=0.65, metadata_result=None) -> list[str]:
         details = []
         frame_scores      = analysis.get("frame_scores", [])
         frames_with_faces = analysis.get("frames_with_faces", 0)
@@ -815,10 +768,6 @@ class ReportGeneratorAgent:
                     details.append("No significant deepfake artifacts detected by either model")
                 else:
                     details.append("Video appears authentic — deepfake probability below detection threshold")
-            
-            # Add phone video context for authentic videos
-            if is_phone:
-                details.append("📱 Phone camera detected — analysis adjusted for mobile video characteristics")
             
             details.append("Natural facial texture and lighting consistency observed across frames")
             details.append("Compression artifacts consistent with genuine camera-captured footage")
