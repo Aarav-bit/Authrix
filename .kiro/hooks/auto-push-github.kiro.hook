@@ -1,14 +1,14 @@
 {
   "enabled": true,
   "name": "Auto Push to GitHub",
-  "description": "After every agent session completes, automatically stages all changes, commits with a timestamp, and pushes to GitHub origin/master so Vercel redeploys automatically.",
+  "description": "After every agent session, stages all changes and pushes to GitHub with a descriptive commit message based on what files changed.",
   "version": "1",
   "when": {
     "type": "agentStop"
   },
   "then": {
     "type": "runCommand",
-    "command": "cd \"e:\\DeepFake Detect\" && git add -A && git diff --cached --quiet || git commit -m \"auto: sync changes $(date +%Y-%m-%d\\ %H:%M)\" && git push origin master",
+    "command": "powershell -Command \"cd 'e:\\DeepFake Detect'; git add -A; $changed = git diff --cached --name-only; if ($changed) { $ts = Get-Date -Format 'yyyy-MM-dd HH:mm'; $dirs = ($changed | ForEach-Object { ($_ -split '/')[0] } | Sort-Object -Unique) -join ', '; git commit -m \\\"update($dirs): $ts\\\"; git push origin master } else { Write-Host 'Nothing to commit' }\"",
     "timeout": 60
   }
 }
