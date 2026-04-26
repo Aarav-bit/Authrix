@@ -1173,17 +1173,31 @@ class DeepfakeAuthenticator:
                 temporal_result = self.temporal_agent.analyze_temporal_consistency(temporal_frames)
                 logger.info(f"Temporal analysis: score={temporal_result['temporal_fake_score']:.3f}")
                 
-                # Blend temporal score with visual score
-                # Increase temporal weight to 35% for better face swap detection
-                temporal_weight = 0.35  # 35% weight to temporal analysis
-                visual_weight = 0.65    # 65% weight to visual analysis
+                # Adaptive weighting based on temporal confidence
+                temporal_score = temporal_result["temporal_fake_score"]
+                temporal_conf = temporal_result["confidence"]
+                
+                # If temporal analysis is highly confident about artifacts, give it more weight
+                if temporal_score > 0.65 and temporal_conf > 0.85:
+                    # Strong temporal artifacts detected - increase weight to 50%
+                    temporal_weight = 0.50
+                    visual_weight = 0.50
+                    logger.info("High-confidence temporal artifacts → using 50/50 weighting")
+                elif temporal_score > 0.55:
+                    # Moderate temporal artifacts - use 40% weight
+                    temporal_weight = 0.40
+                    visual_weight = 0.60
+                else:
+                    # Low temporal artifacts - use 30% weight
+                    temporal_weight = 0.30
+                    visual_weight = 0.70
                 
                 original_prob = overall_prob
                 overall_prob = (overall_prob * visual_weight + 
-                               temporal_result["temporal_fake_score"] * temporal_weight)
+                               temporal_score * temporal_weight)
                 overall_prob = float(np.clip(overall_prob, 0.0, 1.0))
                 
-                logger.info(f"Blended score: visual={original_prob:.3f} + temporal={temporal_result['temporal_fake_score']:.3f} → {overall_prob:.3f}")
+                logger.info(f"Blended score: visual={original_prob:.3f} + temporal={temporal_score:.3f} → {overall_prob:.3f}")
                 
                 # Update analysis with blended score
                 analysis["overall_fake_probability"] = round(overall_prob, 4)
