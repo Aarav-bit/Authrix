@@ -881,7 +881,17 @@ class ReportGeneratorAgent:
 
         # ── Adaptive threshold ────────────────────────────────────────────
         threshold = self.BASE_THRESHOLD
-        if consistency >= 0.70 and coverage >= 0.50:
+        
+        # Check if temporal analysis detected strong artifacts
+        temporal = analysis.get("temporal_analysis", {})
+        temporal_score = temporal.get("temporal_fake_score", 0.5)
+        temporal_conf = temporal.get("confidence", 0.0)
+        
+        # If temporal detected strong artifacts, lower threshold
+        if temporal_score > 0.65 and temporal_conf > 0.85:
+            threshold -= 0.10  # Lower threshold when temporal is confident
+            logger.info(f"Strong temporal artifacts detected → threshold lowered to {threshold:.3f}")
+        elif consistency >= 0.70 and coverage >= 0.50:
             threshold -= 0.06
         elif consistency >= 0.55:
             threshold -= 0.03
