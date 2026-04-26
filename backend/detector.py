@@ -450,10 +450,7 @@ class DecisionAgent:
             if not fake_probs:
                 results.append(self._heuristic_predict(crop))
             elif len(fake_probs) == 2:
-                # Weighted ensemble: balanced approach
-                # Model 1 is more reliable, give it more weight
-                ensemble_score = fake_probs[0] * 0.60 + fake_probs[1] * 0.40
-                results.append(ensemble_score)
+                results.append(fake_probs[0] * 0.55 + fake_probs[1] * 0.45)
             else:
                 results.append(float(np.mean(fake_probs)))
 
@@ -627,7 +624,7 @@ class DecisionAgent:
 # Agent 4: Report Generator Agent
 # ─────────────────────────────────────────────
 class ReportGeneratorAgent:
-    BASE_THRESHOLD = 0.62  # Balanced threshold - not too aggressive, not too lenient
+    BASE_THRESHOLD = 0.58  # Original optimal threshold
 
     def generate(self, analysis: dict, metadata: dict,
                  audio: dict | None = None,
@@ -659,16 +656,12 @@ class ReportGeneratorAgent:
 
         # ── Adaptive threshold ────────────────────────────────────────────
         threshold = self.BASE_THRESHOLD
-        
-        # Balanced adaptive thresholds
-        if consistency >= 0.75 and coverage >= 0.60:
-            # Very high consistency across frames - can be more confident
-            threshold -= 0.05
-        elif consistency >= 0.60:
-            threshold -= 0.02
-        elif consistency < 0.40:
-            # Low consistency - be more cautious
-            threshold += 0.08
+        if consistency >= 0.70 and coverage >= 0.50:
+            threshold -= 0.06
+        elif consistency >= 0.55:
+            threshold -= 0.03
+        elif consistency < 0.35:
+            threshold += 0.07
 
         visual_fake = prob >= threshold
 
@@ -687,8 +680,7 @@ class ReportGeneratorAgent:
             elif not visual_fake and not audio_fake:
                 is_fake = False
             elif visual_fake and not audio_fake:
-                # Visual says fake but audio says real - require slightly higher confidence
-                is_fake = prob >= (threshold + 0.06)
+                is_fake = prob >= (threshold + 0.05)
             else:
                 is_fake = audio_prob >= 0.75
             calibrated = self._calibrate(prob)
@@ -723,7 +715,7 @@ class ReportGeneratorAgent:
         return float(np.clip(conf, 0.88, 0.99))
 
     def _build_details(self, analysis, metadata, prob, is_fake,
-                       threshold=0.62, metadata_result=None) -> list[str]:
+                       threshold=0.58, metadata_result=None) -> list[str]:
         details = []
         frame_scores      = analysis.get("frame_scores", [])
         frames_with_faces = analysis.get("frames_with_faces", 0)
