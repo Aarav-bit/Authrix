@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "name": "Auto Push to GitHub",
+  "description": "After every agent session completes, automatically stages all changes, commits with a timestamp, and pushes to GitHub origin/master so Vercel redeploys automatically.",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "cd \"e:\\DeepFake Detect\" && git add -A && git diff --cached --quiet || git commit -m \"auto: sync changes $(date +%Y-%m-%d\\ %H:%M)\" && git push origin master",
+    "timeout": 60
+  }
+}
