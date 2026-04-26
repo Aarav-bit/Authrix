@@ -59,7 +59,7 @@ export default function ProcessingSection() {
     s.status === 'active' ? 'sync' : s.status === 'done' ? 'check_circle' : 'hourglass_empty';
 
   return (
-    <section className="relative z-10 flex flex-col items-center justify-center px-6 min-h-screen">
+    <section className="relative z-10 flex flex-col items-center justify-center min-h-screen px-6 md:px-12 lg:px-20">
       <div className="absolute inset-0 noise-bg z-0" />
 
       {/* Purple scan line */}
@@ -71,12 +71,12 @@ export default function ProcessingSection() {
         }}
       />
 
-      <div className="relative z-10 w-full max-w-4xl pt-24 pb-16 flex flex-col items-center">
+      <div className="relative z-10 w-full max-w-5xl pt-24 pb-16 flex flex-col items-center gap-8">
 
         {/* Header */}
-        <div className="w-full mb-12 text-center">
+        <div className="w-full text-center">
           <h1
-            className="text-5xl font-black mb-2"
+            className="text-4xl md:text-5xl font-black mb-3"
             style={{
               background: 'linear-gradient(135deg, #c084fc, #a855f7)',
               WebkitBackgroundClip: 'text',
@@ -92,11 +92,11 @@ export default function ProcessingSection() {
         </div>
 
         {/* Bento grid */}
-        <div className="w-full grid grid-cols-1 md:grid-cols-12 gap-5">
+        <div className="w-full grid grid-cols-1 md:grid-cols-12 gap-6">
 
           {/* Left: Orb */}
           <div
-            className="md:col-span-5 rounded-xl p-6 flex flex-col items-center justify-center relative min-h-[300px]"
+            className="md:col-span-5 rounded-2xl p-8 flex flex-col items-center justify-center relative min-h-[320px]"
             style={{
               background: 'rgba(20,10,40,0.5)',
               border: '1px solid rgba(168,85,247,0.15)',
@@ -104,57 +104,40 @@ export default function ProcessingSection() {
               boxShadow: 'inset 1px 1px 0 rgba(255,255,255,0.04)',
             }}
           >
-            <div className="absolute top-3 left-4 font-bold text-[10px] tracking-widest uppercase"
+            <div className="absolute top-4 left-5 font-bold text-[10px] tracking-widest uppercase"
               style={{ color: 'rgba(168,85,247,0.4)' }}>
               Target Vector
             </div>
 
             <div
-              className="relative w-48 h-48 rounded-full flex items-center justify-center"
+              className="relative w-44 h-44 rounded-full flex items-center justify-center my-4"
               style={{
                 border: '1px solid rgba(168,85,247,0.25)',
                 boxShadow: '0 0 30px rgba(124,58,237,0.12)',
               }}
             >
-              <div
-                className="absolute inset-2 rounded-full border-dashed animate-spin-medium"
-                style={{ border: '1px dashed rgba(168,85,247,0.3)' }}
-              />
-              <div
-                className="absolute inset-6 rounded-full flex items-center justify-center overflow-hidden"
-                style={{
-                  background: 'radial-gradient(circle, rgba(88,28,135,0.3) 0%, rgba(13,7,32,0.8) 100%)',
-                }}
-              >
-                <span
-                  className="material-symbols-outlined text-[48px] opacity-40"
-                  style={{ color: '#a855f7', fontVariationSettings: "'FILL' 1" }}
-                >
-                  analytics
-                </span>
+              <div className="absolute inset-2 rounded-full border-dashed animate-spin-medium"
+                style={{ border: '1px dashed rgba(168,85,247,0.3)' }} />
+              <div className="absolute inset-6 rounded-full flex items-center justify-center overflow-hidden"
+                style={{ background: 'radial-gradient(circle, rgba(88,28,135,0.3) 0%, rgba(13,7,32,0.8) 100%)' }}>
+                <span className="material-symbols-outlined text-[48px] opacity-40"
+                  style={{ color: '#a855f7', fontVariationSettings: "'FILL' 1" }}>analytics</span>
               </div>
-              <div
-                className="absolute inset-0 rounded-full border-t-2 blur-[2px] animate-spin-fast"
-                style={{ borderColor: 'rgba(168,85,247,0.7)' }}
-              />
-              <span
-                className="material-symbols-outlined absolute text-4xl"
-                style={{ color: '#c084fc', filter: 'drop-shadow(0 0 10px rgba(168,85,247,0.8))' }}
-              >
+              <div className="absolute inset-0 rounded-full border-t-2 blur-[2px] animate-spin-fast"
+                style={{ borderColor: 'rgba(168,85,247,0.7)' }} />
+              <span className="material-symbols-outlined absolute text-4xl"
+                style={{ color: '#c084fc', filter: 'drop-shadow(0 0 10px rgba(168,85,247,0.8))' }}>
                 troubleshoot
               </span>
             </div>
 
-            <div className="mt-6 w-full">
+            <div className="w-full mt-2 space-y-2">
               {[
                 { label: 'DATA_STREAM', value: 'ACTIVE',   valueColor: '#a855f7' },
                 { label: 'THROUGHPUT',  value: '2.4 TB/s', valueColor: '#818cf8' },
               ].map(({ label, value, valueColor }) => (
-                <div
-                  key={label}
-                  className="flex items-center justify-between text-sm font-medium tracking-wider pb-1 mb-1"
-                  style={{ borderBottom: '1px solid rgba(168,85,247,0.08)', color: 'rgba(192,132,252,0.5)' }}
-                >
+                <div key={label} className="flex items-center justify-between text-sm font-medium tracking-wider py-2"
+                  style={{ borderBottom: '1px solid rgba(168,85,247,0.08)', color: 'rgba(192,132,252,0.5)' }}>
                   <span>{label}</span>
                   <span style={{ color: valueColor, fontWeight: 700 }}>{value}</span>
                 </div>
@@ -164,7 +147,7 @@ export default function ProcessingSection() {
 
           {/* Right: Pipeline */}
           <div
-            className="md:col-span-7 rounded-xl p-6 flex flex-col justify-center gap-4"
+            className="md:col-span-7 rounded-2xl p-8 flex flex-col justify-center gap-5"
             style={{
               background: 'rgba(20,10,40,0.5)',
               border: '1px solid rgba(168,85,247,0.15)',
@@ -172,94 +155,63 @@ export default function ProcessingSection() {
               boxShadow: 'inset 1px 1px 0 rgba(255,255,255,0.04)',
             }}
           >
-            <div className="flex justify-between items-center mb-1">
+            <div className="flex justify-between items-center">
               <span className="font-bold text-[10px] tracking-widest uppercase"
                 style={{ color: 'rgba(168,85,247,0.4)' }}>
                 Processing Pipeline
               </span>
-              <span
-                className="text-sm font-bold px-3 py-1 rounded"
-                style={{
-                  color: '#c084fc',
-                  background: 'rgba(124,58,237,0.2)',
-                  border: '1px solid rgba(168,85,247,0.3)',
-                }}
-              >
+              <span className="text-sm font-bold px-3 py-1 rounded"
+                style={{ color: '#c084fc', background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(168,85,247,0.3)' }}>
                 {overallPct}% COMPLETE
               </span>
             </div>
 
-            {steps.map((step, i) => (
-              <div
-                key={i}
-                className="flex flex-col gap-1 transition-opacity duration-400"
-                style={{ opacity: step.status === 'pending' ? 0.3 : 1 }}
-              >
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="material-symbols-outlined text-sm"
-                      style={{ color: stepColor(step) }}
-                    >
-                      {stepIcon(step)}
-                    </span>
-                    <span className="text-sm font-medium tracking-wider text-white/80">
-                      {step.label}
+            <div className="flex flex-col gap-4">
+              {steps.map((step, i) => (
+                <div key={i} className="flex flex-col gap-2 transition-opacity duration-400"
+                  style={{ opacity: step.status === 'pending' ? 0.3 : 1 }}>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-sm" style={{ color: stepColor(step) }}>
+                        {stepIcon(step)}
+                      </span>
+                      <span className="text-sm font-medium tracking-wider text-white/80">{step.label}</span>
+                    </div>
+                    <span className="text-sm font-bold" style={{ color: stepColor(step) }}>
+                      {step.status === 'done' ? '100%' : step.status === 'active' ? `${step.pct}%` : '0%'}
                     </span>
                   </div>
-                  <span className="text-sm font-bold" style={{ color: stepColor(step) }}>
-                    {step.status === 'done' ? '100%' : step.status === 'active' ? `${step.pct}%` : '0%'}
-                  </span>
+                  <div className="w-full h-2 flex gap-[2px] rounded overflow-hidden"
+                    style={{ background: 'rgba(88,28,135,0.2)' }}>
+                    {Array.from({ length: 10 }).map((_, j) => {
+                      const filled = step.status === 'done' || (step.status === 'active' && j < Math.round(step.pct / 10));
+                      return (
+                        <div key={j} className="h-full flex-1 transition-all duration-500"
+                          style={{
+                            background: filled ? step.status === 'done' ? `${P}0.55)` : `${P}0.85)` : `${P}0.08)`,
+                            boxShadow: filled && step.status === 'active' ? `0 0 6px ${P}0.5)` : 'none',
+                          }} />
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="w-full h-2 flex gap-[2px] rounded overflow-hidden"
-                  style={{ background: 'rgba(88,28,135,0.2)' }}>
-                  {Array.from({ length: 10 }).map((_, j) => {
-                    const filled = step.status === 'done' || (step.status === 'active' && j < Math.round(step.pct / 10));
-                    return (
-                      <div key={j} className="h-full flex-1 transition-all duration-500"
-                        style={{
-                          background: filled
-                            ? step.status === 'done'
-                              ? `${P}0.55)`
-                              : `${P}0.85)`
-                            : `${P}0.08)`,
-                          boxShadow: filled && step.status === 'active' ? `0 0 6px ${P}0.5)` : 'none',
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Overall progress */}
-        <div
-          className="w-full mt-6 rounded-xl p-4"
-          style={{
-            background: 'rgba(20,10,40,0.5)',
-            border: '1px solid rgba(168,85,247,0.15)',
-            backdropFilter: 'blur(20px)',
-          }}
-        >
-          <div className="flex justify-between items-center mb-2">
-            <span className="font-bold text-[10px] tracking-widest uppercase"
-              style={{ color: 'rgba(168,85,247,0.4)' }}>
+        <div className="w-full rounded-2xl p-6"
+          style={{ background: 'rgba(20,10,40,0.5)', border: '1px solid rgba(168,85,247,0.15)', backdropFilter: 'blur(20px)' }}>
+          <div className="flex justify-between items-center mb-3">
+            <span className="font-bold text-[10px] tracking-widest uppercase" style={{ color: 'rgba(168,85,247,0.4)' }}>
               Overall Progress
             </span>
             <span className="text-sm font-bold" style={{ color: '#c084fc' }}>{overallPct}%</span>
           </div>
-          <div className="w-full h-3 rounded-full overflow-hidden"
-            style={{ background: 'rgba(88,28,135,0.2)' }}>
-            <div
-              className="h-full rounded-full transition-all duration-700"
-              style={{
-                width: `${overallPct}%`,
-                background: 'linear-gradient(to right, #7c3aed, #a855f7, #c084fc)',
-                boxShadow: '0 0 12px rgba(168,85,247,0.5)',
-              }}
-            />
+          <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: 'rgba(88,28,135,0.2)' }}>
+            <div className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${overallPct}%`, background: 'linear-gradient(to right, #7c3aed, #a855f7, #c084fc)', boxShadow: '0 0 12px rgba(168,85,247,0.5)' }} />
           </div>
         </div>
 
