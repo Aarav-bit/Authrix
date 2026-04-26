@@ -227,12 +227,21 @@ export default function ResultSection({ result, onReset }: ResultSectionProps) {
               {/* Risk badge */}
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
                 style={{
-                  color: pct >= 65 ? '#ff3355' : pct >= 35 ? '#f59e0b' : '#a855f7',
+                  color: isFake 
+                    ? (pct >= 65 ? '#ff3355' : pct >= 35 ? '#f59e0b' : '#a855f7')
+                    : '#a855f7',
                   background: '#120a24',
                   boxShadow: `4px 4px 10px #0a0618, -4px -4px 10px #1a0e30`,
-                  border: `1px solid ${pct >= 65 ? 'rgba(255,51,85,0.3)' : pct >= 35 ? 'rgba(245,158,11,0.3)' : 'rgba(168,85,247,0.3)'}`,
+                  border: `1px solid ${
+                    isFake 
+                      ? (pct >= 65 ? 'rgba(255,51,85,0.3)' : pct >= 35 ? 'rgba(245,158,11,0.3)' : 'rgba(168,85,247,0.3)')
+                      : 'rgba(168,85,247,0.3)'
+                  }`,
                 }}>
-                {pct >= 65 ? 'CRITICAL RISK' : pct >= 35 ? 'MEDIUM RISK' : 'LOW RISK'}
+                {isFake 
+                  ? (pct >= 65 ? 'CRITICAL RISK' : pct >= 35 ? 'MEDIUM RISK' : 'LOW RISK')
+                  : (pct >= 65 ? 'VERIFIED AUTHENTIC' : 'LIKELY AUTHENTIC')
+                }
               </div>
 
               {result.audio?.available && (
