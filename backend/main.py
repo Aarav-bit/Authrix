@@ -144,6 +144,24 @@ async def health():
     }
 
 
+@app.post("/clear-cache")
+async def clear_cache():
+    """Clear the result cache."""
+    try:
+        from detector import _result_cache
+        cache_size = len(_result_cache)
+        _result_cache.clear()
+        logger.info(f"Cache cleared: {cache_size} entries removed")
+        return {
+            "status": "success",
+            "message": f"Cleared {cache_size} cached results",
+            "entries_removed": cache_size
+        }
+    except Exception as e:
+        logger.error(f"Failed to clear cache: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to clear cache: {str(e)}")
+
+
 @app.post("/analyze-url")
 async def analyze_from_url(payload: dict):
     """Download a video from a URL and analyze it. Used by the browser extension."""
