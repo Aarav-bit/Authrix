@@ -556,6 +556,69 @@ class DecisionAgent:
             "face_coverage": round(face_coverage, 3),
         }
 
+    def analyze_chunk_streaming(self, chunk_frames: list[np.ndarray],
+                                face_crops_per_frame: list[list[np.ndarray]],
+                                chunk_idx: int) -> dict:
+        """
+        Phase 5: Analyze a single chunk and return results for early exit decision.
+        Returns chunk-level statistics that can be used to decide whether to continue.
+        """
+        indexed_crops = []
+        total_faces = sum(len(c) for c in face_crops_per_frame)
+
+        if total_faces < 2:
+            # Use full frames if no faces
+            for i, frame in enumerate(chunk_frames):
+                crop = cv2.resize(frame, (224, 224))
+                if self._is_quality_crop(crop):
+                    indexed_crops.append((i, crop))
+        else:
+            for i, crops in enumerate(face_crops_per_frame):
+                for crop in crops:
+                    if self._is_quality_crop(crop):
+                        indexed_crops.append((i, crop))
+
+        if not indexed_crops:
+            return {
+                "chunk_idx": chunk_idx,
+                "frame_scores": [],
+                "chunk_mean": 0.40,
+                "frames_analyzed": len(chunk_frames),
+                "frames_with_faces": 0,
+            }
+
+        # Run inference on this chunk's crops
+        crops_only = [c for _, c in indexed_crops]
+        if self.use_hf_model:
+            try:
+                all_scores = self._batch_predict(crops_only)
+            except Exception as e:
+                logger.warning(f"Chunk {chunk_idx} inference failed: {e}")
+                all_scores = [self._heuristic_predict(c) for c in crops_only]
+        else:
+            all_scores = [self._heuristic_predict(c) for c in crops_only]
+
+        # Aggregate scores per frame
+        frame_score_map: dict[int, list[float]] = {}
+        for (frame_idx, _), score in zip(indexed_crops, all_scores):
+            frame_score_map.setdefault(frame_idx, []).append(score)
+
+        frame_scores = [
+            {"frame_index": fi, "fake_probability": round(float(np.mean(sc)), 4)}
+            for fi, sc in sorted(frame_score_map.items())
+        ]
+
+        probs = [s["fake_probability"] for s in frame_scores]
+        chunk_mean = float(np.mean(probs)) if probs else 0.40
+
+        return {
+            "chunk_idx": chunk_idx,
+            "frame_scores": frame_scores,
+            "chunk_mean": round(chunk_mean, 4),
+            "frames_analyzed": len(chunk_frames),
+            "frames_with_faces": len(frame_score_map),
+        }
+
 
 # ─────────────────────────────────────────────
 # Agent 4: Report Generator Agent
@@ -758,11 +821,16 @@ class DeepfakeAuthenticator:
         # ── Step 1: Metadata (instant) ────────────────────────────────────
         metadata_result = self.metadata_agent.analyze(video_path)
 
-        # ── Step 2: Extract frames ────────────────────────────────────────
-        metadata   = self.frame_agent.get_video_metadata(video_path)
-        frames     = self.frame_agent.extract_frames(video_path, fast_mode=fast_mode)
+        # ── Step 2: Get video metadata ────────────────────────────────────
+        metadata = self.frame_agent.get_video_metadata(video_path)
 
-        if not frames:
+        # ── Step 3: Chunk-streaming pipeline with early exit ──────────────
+        logger.info("Phase 5: Starting chunk-streaming pipeline")
+        
+        # Extract frames grouped by chunks
+        chunks = self.frame_agent.extract_frames_chunked(video_path, fast_mode=fast_mode)
+        
+        if not chunks or all(len(c) == 0 for c in chunks):
             return {
                 "result": "ERROR", "confidence": 0,
                 "details": ["Could not extract frames from video"],
@@ -770,31 +838,100 @@ class DeepfakeAuthenticator:
                 "audio": {"available": False, "result": "NO_AUDIO", "confidence": 0, "details": []},
             }
 
-        # ── Step 3: Face detection + audio in parallel ────────────────────
+        # Start audio analysis in parallel (non-blocking)
         audio_result = {"available": False, "result": "NO_AUDIO", "confidence": 0, "details": []}
+        audio_future = None
+        audio_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        audio_agent = self._get_audio()
+        if audio_agent:
+            audio_future = audio_executor.submit(audio_agent.analyze, video_path, 0.5)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            face_future  = executor.submit(self.face_agent.detect_all_frames, frames)
-            audio_agent  = self._get_audio()
-            audio_future = None
-            if audio_agent:
-                audio_future = executor.submit(audio_agent.analyze, video_path, 0.5)
+        # Process chunks one by one with early exit
+        all_chunk_results = []
+        all_frame_scores = []
+        total_frames_analyzed = 0
+        total_frames_with_faces = 0
+        early_exit = False
+        
+        for chunk_idx, chunk_frames in enumerate(chunks):
+            if not chunk_frames:
+                continue
+            
+            logger.info(f"Processing chunk {chunk_idx + 1}/{len(chunks)} ({len(chunk_frames)} frames)")
+            
+            # Face detection for this chunk
+            face_crops_per_frame = self.face_agent.detect_all_frames(chunk_frames)
+            
+            # Inference for this chunk
+            chunk_result = self.decision_agent.analyze_chunk_streaming(
+                chunk_frames, face_crops_per_frame, chunk_idx
+            )
+            
+            all_chunk_results.append(chunk_result)
+            all_frame_scores.extend(chunk_result["frame_scores"])
+            total_frames_analyzed += chunk_result["frames_analyzed"]
+            total_frames_with_faces += chunk_result["frames_with_faces"]
+            
+            # Early exit logic: if we have enough data and strong signal
+            if chunk_idx >= 2:  # Need at least 3 chunks for reliable decision
+                chunk_means = [r["chunk_mean"] for r in all_chunk_results]
+                overall_mean = float(np.mean(chunk_means))
+                consistency = sum(1 for m in chunk_means if m > 0.55) / len(chunk_means)
+                
+                # Strong fake signal → exit early
+                if overall_mean > 0.75 and consistency > 0.66:
+                    logger.info(f"Early exit: Strong FAKE signal (mean={overall_mean:.3f}, consistency={consistency:.2f})")
+                    early_exit = True
+                    break
+                
+                # Strong real signal → exit early
+                if overall_mean < 0.35 and consistency > 0.66:
+                    logger.info(f"Early exit: Strong REAL signal (mean={overall_mean:.3f}, consistency={consistency:.2f})")
+                    early_exit = True
+                    break
+        
+        # Aggregate results from all processed chunks
+        if not all_frame_scores:
+            overall_prob = 0.40
+            consistency = 0.0
+        else:
+            probs = [s["fake_probability"] for s in all_frame_scores]
+            if len(probs) < 3:
+                overall_prob = float(np.mean(probs)) * 0.80
+            else:
+                overall_prob = float(np.mean(probs)) * 0.65 + float(np.median(probs)) * 0.35
+            overall_prob = float(np.clip(overall_prob, 0.0, 1.0))
+            consistency = sum(1 for p in probs if p > 0.50) / len(probs)
+        
+        face_coverage = total_frames_with_faces / max(total_frames_analyzed, 1)
+        
+        analysis = {
+            "frame_scores": all_frame_scores,
+            "overall_fake_probability": round(overall_prob, 4),
+            "frames_analyzed": total_frames_analyzed,
+            "frames_with_faces": total_frames_with_faces,
+            "consistency": round(consistency, 3),
+            "face_coverage": round(face_coverage, 3),
+            "early_exit": early_exit,
+            "chunks_processed": len(all_chunk_results),
+            "chunks_total": len(chunks),
+        }
+        
+        logger.info(f"Chunk streaming: processed {len(all_chunk_results)}/{len(chunks)} chunks, "
+                   f"early_exit={early_exit}")
 
-            face_crops_per_frame = face_future.result()
+        # Wait for audio (with timeout)
+        if audio_future:
+            try:
+                audio_result = audio_future.result(timeout=20)
+            except concurrent.futures.TimeoutError:
+                logger.warning("Audio analysis timed out after 20s")
+            except Exception as e:
+                logger.warning(f"Audio analysis failed: {e}")
+            finally:
+                audio_executor.shutdown(wait=False)
 
-            if audio_future:
-                try:
-                    # 20s hard timeout — never block the pipeline for audio
-                    audio_result = audio_future.result(timeout=20)
-                except concurrent.futures.TimeoutError:
-                    logger.warning("Audio analysis timed out after 20s — skipping")
-                except Exception as e:
-                    logger.warning(f"Audio analysis failed: {e}")
-
-        # ── Step 4: Visual decision ───────────────────────────────────────
-        analysis = self.decision_agent.analyze_frames(frames, face_crops_per_frame)
-
-        # ── Step 5: Report ────────────────────────────────────────────────
+        # ── Step 4: Generate report ───────────────────────────────────────
         report = self.report_agent.generate(
             analysis, metadata, audio_result,
             metadata_result=metadata_result,
