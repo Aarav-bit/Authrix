@@ -450,14 +450,12 @@ class DecisionAgent:
             if not fake_probs:
                 results.append(self._heuristic_predict(crop))
             elif len(fake_probs) == 2:
-                # Weighted ensemble: give more weight to first model, less to second
-                # Reduce overall sensitivity to prevent false positives
-                ensemble_score = fake_probs[0] * 0.50 + fake_probs[1] * 0.40
-                # Apply conservative bias - shift scores toward "real"
-                ensemble_score = ensemble_score * 0.90
+                # Weighted ensemble: balanced approach
+                # Model 1 is more reliable, give it more weight
+                ensemble_score = fake_probs[0] * 0.60 + fake_probs[1] * 0.40
                 results.append(ensemble_score)
             else:
-                results.append(float(np.mean(fake_probs)) * 0.90)
+                results.append(float(np.mean(fake_probs)))
 
         return results
 
@@ -629,7 +627,7 @@ class DecisionAgent:
 # Agent 4: Report Generator Agent
 # ─────────────────────────────────────────────
 class ReportGeneratorAgent:
-    BASE_THRESHOLD = 0.65  # Raised from 0.58 to reduce false positives
+    BASE_THRESHOLD = 0.62  # Balanced threshold - not too aggressive, not too lenient
 
     def generate(self, analysis: dict, metadata: dict,
                  audio: dict | None = None,
@@ -662,15 +660,15 @@ class ReportGeneratorAgent:
         # ── Adaptive threshold ────────────────────────────────────────────
         threshold = self.BASE_THRESHOLD
         
-        # More conservative thresholds based on consistency
+        # Balanced adaptive thresholds
         if consistency >= 0.75 and coverage >= 0.60:
-            # Very high consistency - can be slightly more aggressive
-            threshold -= 0.04
+            # Very high consistency across frames - can be more confident
+            threshold -= 0.05
         elif consistency >= 0.60:
             threshold -= 0.02
         elif consistency < 0.40:
-            # Low consistency - be more conservative
-            threshold += 0.10
+            # Low consistency - be more cautious
+            threshold += 0.08
 
         visual_fake = prob >= threshold
 
@@ -689,8 +687,8 @@ class ReportGeneratorAgent:
             elif not visual_fake and not audio_fake:
                 is_fake = False
             elif visual_fake and not audio_fake:
-                # Visual says fake but audio says real - require higher confidence
-                is_fake = prob >= (threshold + 0.08)
+                # Visual says fake but audio says real - require slightly higher confidence
+                is_fake = prob >= (threshold + 0.06)
             else:
                 is_fake = audio_prob >= 0.75
             calibrated = self._calibrate(prob)
@@ -725,7 +723,7 @@ class ReportGeneratorAgent:
         return float(np.clip(conf, 0.88, 0.99))
 
     def _build_details(self, analysis, metadata, prob, is_fake,
-                       threshold=0.65, metadata_result=None) -> list[str]:
+                       threshold=0.62, metadata_result=None) -> list[str]:
         details = []
         frame_scores      = analysis.get("frame_scores", [])
         frames_with_faces = analysis.get("frames_with_faces", 0)
