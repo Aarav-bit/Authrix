@@ -68,3 +68,4 @@ logs/
 node_modules/
 frontend-react/dist/
 frontend-react/.vite/
+frontend-react/.env.local

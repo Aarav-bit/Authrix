@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 
+const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? '';
+
 interface NavbarProps {
   onDashboard: () => void;
   onGetStarted: () => void;
@@ -10,7 +12,7 @@ export default function Navbar({ onDashboard, onGetStarted, onOpenModal }: Navba
   const [health, setHealth] = useState<'checking' | 'online' | 'offline'>('checking');
 
   useEffect(() => {
-    fetch('/health')
+    fetch(`${API_BASE}/health`)
       .then(r => r.ok ? setHealth('online') : setHealth('offline'))
       .catch(() => setHealth('offline'));
   }, []);

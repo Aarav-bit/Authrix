@@ -20,15 +20,14 @@ ENV HOME=/home/user \
 
 WORKDIR /home/user/app
 
-# Copy files
+# Copy only the backend
 COPY --chown=user backend/ ./backend/
-COPY --chown=user frontend-vanilla/ ./frontend-vanilla/
 
 # Install dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r backend/requirements.txt
 
-# Pre-cache HuggingFace models
+# Pre-cache HuggingFace models at build time
 RUN python -c "\
 from transformers import ViTForImageClassification, ViTImageProcessor; \
 ViTImageProcessor.from_pretrained('dima806/deepfake_vs_real_image_detection'); \

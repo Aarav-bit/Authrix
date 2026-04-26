@@ -11,8 +11,6 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from typing import Optional
 
 # ── Logging (must be set up before any logger usage) ─────────────────────────
@@ -94,7 +92,14 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://*.vercel.app",
+        "https://authrix.vercel.app",
+        # Add your custom domain here if you have one
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -114,7 +119,6 @@ authenticator = None
 async def startup_event():
     global authenticator
     logger.info("Initializing DeepfakeAuthenticator...")
-    logger.info(f"Frontend path: {_vanilla_dir} (exists={_vanilla_dir.exists()})")
     authenticator = DeepfakeAuthenticator()
     logger.info(
         f"DeepfakeAuthenticator ready — model: "
@@ -341,64 +345,6 @@ async def analyze_video(
                     logger.info(f"Cleaned up: {p.name}")
                 except Exception:
                     pass
-
-
-# ── Serve frontend ────────────────────────────
-_react_dist  = Path(__file__).parent.parent / "frontend-dist"
-_vanilla_dir = Path(__file__).parent.parent / "frontend-vanilla"
-
-if _react_dist.exists():
-    app.mount("/assets", StaticFiles(directory=str(_react_dist / "assets")), name="assets")
-
-    @app.get("/")
-    async def serve_index():
-        return FileResponse(
-            str(_react_dist / "index.html"),
-            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
-        )
-
-    @app.get("/{full_path:path}")
-    async def spa_fallback(full_path: str):
-        index = _react_dist / "index.html"
-        if index.exists():
-            return FileResponse(str(index))
-        return {"detail": "Not found"}
-
-elif _vanilla_dir.exists():
-    from fastapi.staticfiles import StaticFiles as SF
-
-    @app.get("/script.js")
-    async def serve_script():
-        return FileResponse(
-            str(_vanilla_dir / "script.js"),
-            media_type="application/javascript",
-            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
-        )
-
-    @app.get("/pricing")
-    async def serve_pricing():
-        return FileResponse(
-            str(_vanilla_dir / "pricing.html"),
-            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
-        )
-
-    @app.get("/")
-    async def serve_index():
-        return FileResponse(
-            str(_vanilla_dir / "index.html"),
-            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
-        )
-
-    # Serve any other static file from frontend-vanilla/
-    @app.get("/{filename:path}")
-    async def serve_static(filename: str):
-        file_path = _vanilla_dir / filename
-        if file_path.exists() and file_path.is_file():
-            return FileResponse(str(file_path))
-        return FileResponse(
-            str(_vanilla_dir / "index.html"),
-            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
-        )
 
 
 if __name__ == "__main__":

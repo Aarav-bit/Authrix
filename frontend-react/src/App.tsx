@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { AnalysisResult, AppState } from './types';
+import { API_BASE } from './api';
 import Background from './components/Background';
 import RadioNav from './components/RadioNav';
 import HeroSection from './components/HeroSection';
@@ -29,7 +30,7 @@ export default function App() {
     const fd = new FormData();
     fd.append('file', file);
     try {
-      const res = await fetch('/analyze', { method: 'POST', body: fd });
+      const res = await fetch(`${API_BASE}/analyze`, { method: 'POST', body: fd });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
         throw new Error((e as { detail?: string }).detail || `Server error ${res.status}`);
