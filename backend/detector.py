@@ -222,6 +222,230 @@ class FrameAnalyzerAgent:
 
 
 # ─────────────────────────────────────────────
+# Agent 2.5: Temporal Consistency Agent
+# Analyzes frame-to-frame consistency to detect temporal artifacts
+# ─────────────────────────────────────────────
+class TemporalConsistencyAgent:
+    def __init__(self):
+        self.mp_face_mesh = mp.solutions.face_mesh
+        
+    def analyze_temporal_consistency(self, frames: list[np.ndarray]) -> dict:
+        """
+        Analyze temporal consistency across frames to detect deepfake artifacts.
+        Returns a score where higher = more suspicious (more likely fake).
+        """
+        if len(frames) < 3:
+            return {
+                "temporal_fake_score": 0.5,
+                "confidence": 0.0,
+                "details": ["Insufficient frames for temporal analysis"],
+            }
+        
+        scores = []
+        details = []
+        
+        # 1. Face landmark stability check
+        landmark_score, landmark_detail = self._check_landmark_stability(frames)
+        scores.append(landmark_score)
+        if landmark_detail:
+            details.append(landmark_detail)
+        
+        # 2. Skin tone consistency check
+        skin_score, skin_detail = self._check_skin_consistency(frames)
+        scores.append(skin_score)
+        if skin_detail:
+            details.append(skin_detail)
+        
+        # 3. Edge sharpness variation check
+        edge_score, edge_detail = self._check_edge_consistency(frames)
+        scores.append(edge_score)
+        if edge_detail:
+            details.append(edge_detail)
+        
+        # 4. Optical flow anomaly check
+        flow_score, flow_detail = self._check_optical_flow(frames)
+        scores.append(flow_score)
+        if flow_detail:
+            details.append(flow_detail)
+        
+        # Aggregate temporal fake score
+        temporal_fake_score = float(np.mean(scores))
+        confidence = 1.0 - np.std(scores)  # High agreement = high confidence
+        
+        logger.info(f"Temporal analysis: score={temporal_fake_score:.3f} confidence={confidence:.3f}")
+        
+        return {
+            "temporal_fake_score": round(temporal_fake_score, 4),
+            "confidence": round(confidence, 3),
+            "details": details,
+        }
+    
+    def _check_landmark_stability(self, frames: list[np.ndarray]) -> tuple[float, str]:
+        """Check if facial landmarks move naturally across frames."""
+        try:
+            with self.mp_face_mesh.FaceMesh(
+                static_image_mode=False,
+                max_num_faces=1,
+                min_detection_confidence=0.3
+            ) as face_mesh:
+                landmark_positions = []
+                
+                for frame in frames[:min(10, len(frames))]:  # Sample up to 10 frames
+                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    result = face_mesh.process(rgb)
+                    
+                    if result.multi_face_landmarks:
+                        # Track key landmarks (nose tip, chin, eye corners)
+                        landmarks = result.multi_face_landmarks[0].landmark
+                        key_points = [
+                            (landmarks[1].x, landmarks[1].y),    # Nose tip
+                            (landmarks[152].x, landmarks[152].y), # Chin
+                            (landmarks[33].x, landmarks[33].y),   # Left eye
+                            (landmarks[263].x, landmarks[263].y), # Right eye
+                        ]
+                        landmark_positions.append(key_points)
+                
+                if len(landmark_positions) < 3:
+                    return 0.5, None
+                
+                # Calculate frame-to-frame movement variance
+                movements = []
+                for i in range(1, len(landmark_positions)):
+                    prev = np.array(landmark_positions[i-1])
+                    curr = np.array(landmark_positions[i])
+                    movement = np.linalg.norm(curr - prev, axis=1).mean()
+                    movements.append(movement)
+                
+                movement_std = np.std(movements)
+                
+                # High variance = unnatural jittering (suspicious)
+                if movement_std > 0.015:
+                    return 0.72, "⚠️ Unnatural facial landmark jittering detected"
+                elif movement_std > 0.010:
+                    return 0.58, None
+                else:
+                    return 0.35, None
+                    
+        except Exception as e:
+            logger.warning(f"Landmark stability check failed: {e}")
+            return 0.5, None
+    
+    def _check_skin_consistency(self, frames: list[np.ndarray]) -> tuple[float, str]:
+        """Check if skin tone remains consistent across frames."""
+        try:
+            skin_tones = []
+            
+            for frame in frames[:min(8, len(frames))]:
+                hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+                # Skin tone range in HSV
+                lower = np.array([0, 20, 70])
+                upper = np.array([20, 255, 255])
+                mask = cv2.inRange(hsv, lower, upper)
+                
+                if np.sum(mask > 0) > 100:  # Enough skin pixels
+                    skin_pixels = frame[mask > 0]
+                    avg_color = np.mean(skin_pixels, axis=0)
+                    skin_tones.append(avg_color)
+            
+            if len(skin_tones) < 3:
+                return 0.5, None
+            
+            # Calculate variance in skin tone across frames
+            skin_variance = np.std(skin_tones, axis=0).mean()
+            
+            # High variance = inconsistent skin tone (suspicious)
+            if skin_variance > 15:
+                return 0.68, "⚠️ Inconsistent skin tone across frames"
+            elif skin_variance > 10:
+                return 0.55, None
+            else:
+                return 0.32, None
+                
+        except Exception as e:
+            logger.warning(f"Skin consistency check failed: {e}")
+            return 0.5, None
+    
+    def _check_edge_consistency(self, frames: list[np.ndarray]) -> tuple[float, str]:
+        """Check if edge sharpness around face boundaries is consistent."""
+        try:
+            edge_sharpness = []
+            
+            for frame in frames[:min(8, len(frames))]:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                # Focus on center region where face typically is
+                h, w = gray.shape
+                center = gray[h//4:3*h//4, w//4:3*w//4]
+                
+                # Calculate edge sharpness
+                laplacian = cv2.Laplacian(center, cv2.CV_64F)
+                sharpness = laplacian.var()
+                edge_sharpness.append(sharpness)
+            
+            if len(edge_sharpness) < 3:
+                return 0.5, None
+            
+            # Calculate coefficient of variation
+            mean_sharp = np.mean(edge_sharpness)
+            std_sharp = np.std(edge_sharpness)
+            cv = std_sharp / (mean_sharp + 1e-8)
+            
+            # High variation = flickering edges (suspicious)
+            if cv > 0.35:
+                return 0.70, "⚠️ Flickering edge artifacts detected"
+            elif cv > 0.25:
+                return 0.56, None
+            else:
+                return 0.33, None
+                
+        except Exception as e:
+            logger.warning(f"Edge consistency check failed: {e}")
+            return 0.5, None
+    
+    def _check_optical_flow(self, frames: list[np.ndarray]) -> tuple[float, str]:
+        """Check for unnatural motion patterns using optical flow."""
+        try:
+            if len(frames) < 3:
+                return 0.5, None
+            
+            flow_magnitudes = []
+            
+            for i in range(1, min(6, len(frames))):
+                prev_gray = cv2.cvtColor(frames[i-1], cv2.COLOR_BGR2GRAY)
+                curr_gray = cv2.cvtColor(frames[i], cv2.COLOR_BGR2GRAY)
+                
+                # Calculate dense optical flow
+                flow = cv2.calcOpticalFlowFarneback(
+                    prev_gray, curr_gray, None,
+                    pyr_scale=0.5, levels=3, winsize=15,
+                    iterations=3, poly_n=5, poly_sigma=1.2, flags=0
+                )
+                
+                # Calculate flow magnitude
+                magnitude = np.sqrt(flow[..., 0]**2 + flow[..., 1]**2)
+                avg_magnitude = np.mean(magnitude)
+                flow_magnitudes.append(avg_magnitude)
+            
+            if len(flow_magnitudes) < 2:
+                return 0.5, None
+            
+            # Check for sudden jumps in motion (unnatural)
+            flow_diff = np.diff(flow_magnitudes)
+            max_jump = np.max(np.abs(flow_diff))
+            
+            # Large sudden jumps = unnatural motion (suspicious)
+            if max_jump > 3.0:
+                return 0.69, "⚠️ Unnatural motion patterns detected"
+            elif max_jump > 2.0:
+                return 0.54, None
+            else:
+                return 0.34, None
+                
+        except Exception as e:
+            logger.warning(f"Optical flow check failed: {e}")
+            return 0.5, None
+
+
+# ─────────────────────────────────────────────
 # Agent 2: Face Detector Agent
 # Single MediaPipe context for all frames
 # Phase 3: Face detection caching across chunks
@@ -721,6 +945,10 @@ class ReportGeneratorAgent:
         frames_with_faces = analysis.get("frames_with_faces", 0)
         frames_analyzed   = analysis.get("frames_analyzed", 0)
         probs = [s["fake_probability"] for s in frame_scores] if frame_scores else []
+        
+        # Temporal analysis details
+        temporal = analysis.get("temporal_analysis", {})
+        temporal_details = temporal.get("details", [])
 
         # C2PA signal
         if metadata_result and metadata_result.get("is_ai_generated"):
@@ -746,6 +974,11 @@ class ReportGeneratorAgent:
             if probs:
                 pct = sum(1 for p in probs if p >= 0.60) / len(probs) * 100
                 details.append(f"Inconsistent manipulation across frames ({pct:.0f}% flagged)")
+            
+            # Add temporal analysis findings
+            if temporal_details:
+                details.extend(temporal_details)
+            
             details.append("Unnatural texture blending detected at facial boundary regions")
             details.append("High-frequency noise patterns inconsistent with authentic camera footage")
             if probs and max(probs) > 0.90:
@@ -760,6 +993,11 @@ class ReportGeneratorAgent:
                     details.append("Video appears authentic — deepfake probability below detection threshold")
             
             details.append("Natural facial texture and lighting consistency observed across frames")
+            
+            # Add temporal consistency confirmation for authentic videos
+            if temporal.get("temporal_fake_score", 0.5) < 0.45:
+                details.append("✓ Temporal consistency verified — natural frame-to-frame transitions")
+            
             details.append("Compression artifacts consistent with genuine camera-captured footage")
             if frames_with_faces > 0:
                 details.append(f"Clean analysis across {frames_with_faces} face-containing frames")
@@ -785,6 +1023,7 @@ class DeepfakeAuthenticator:
     def __init__(self):
         self.frame_agent    = FrameAnalyzerAgent(sample_rate=10)
         self.face_agent     = FaceDetectorAgent(min_detection_confidence=0.3)
+        self.temporal_agent = TemporalConsistencyAgent()
         self.decision_agent = DecisionAgent()
         self.report_agent   = ReportGeneratorAgent()
         self.metadata_agent = MetadataAgent()
@@ -920,6 +1159,35 @@ class DeepfakeAuthenticator:
         
         logger.info(f"Chunk streaming: processed {len(all_chunk_results)}/{len(chunks)} chunks, "
                    f"early_exit={early_exit}")
+
+        # ── Step 3.5: Temporal Consistency Analysis ───────────────────────
+        # Collect sample frames for temporal analysis
+        temporal_frames = []
+        for chunk in chunks[:min(3, len(chunks))]:  # Use first 3 chunks
+            temporal_frames.extend(chunk[:min(3, len(chunk))])  # 3 frames per chunk
+        
+        temporal_result = {"temporal_fake_score": 0.5, "confidence": 0.0, "details": []}
+        if len(temporal_frames) >= 3:
+            try:
+                temporal_result = self.temporal_agent.analyze_temporal_consistency(temporal_frames)
+                logger.info(f"Temporal analysis: score={temporal_result['temporal_fake_score']:.3f}")
+                
+                # Blend temporal score with visual score
+                temporal_weight = 0.25  # 25% weight to temporal analysis
+                visual_weight = 0.75    # 75% weight to visual analysis
+                
+                original_prob = overall_prob
+                overall_prob = (overall_prob * visual_weight + 
+                               temporal_result["temporal_fake_score"] * temporal_weight)
+                overall_prob = float(np.clip(overall_prob, 0.0, 1.0))
+                
+                logger.info(f"Blended score: visual={original_prob:.3f} + temporal={temporal_result['temporal_fake_score']:.3f} → {overall_prob:.3f}")
+                
+                # Update analysis with blended score
+                analysis["overall_fake_probability"] = round(overall_prob, 4)
+                analysis["temporal_analysis"] = temporal_result
+            except Exception as e:
+                logger.warning(f"Temporal analysis failed: {e}")
 
         # Wait for audio (with timeout)
         if audio_future:
