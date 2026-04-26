@@ -318,13 +318,14 @@ class TemporalConsistencyAgent:
                 
                 movement_std = np.std(movements)
                 
+                # More sensitive thresholds for face swap detection
                 # High variance = unnatural jittering (suspicious)
-                if movement_std > 0.015:
-                    return 0.72, "⚠️ Unnatural facial landmark jittering detected"
-                elif movement_std > 0.010:
-                    return 0.58, None
+                if movement_std > 0.012:
+                    return 0.75, "⚠️ Unnatural facial landmark jittering detected"
+                elif movement_std > 0.008:
+                    return 0.62, None
                 else:
-                    return 0.35, None
+                    return 0.32, None
                     
         except Exception as e:
             logger.warning(f"Landmark stability check failed: {e}")
@@ -353,13 +354,13 @@ class TemporalConsistencyAgent:
             # Calculate variance in skin tone across frames
             skin_variance = np.std(skin_tones, axis=0).mean()
             
-            # High variance = inconsistent skin tone (suspicious)
-            if skin_variance > 15:
-                return 0.68, "⚠️ Inconsistent skin tone across frames"
-            elif skin_variance > 10:
-                return 0.55, None
+            # More sensitive - face swaps often have subtle skin tone shifts
+            if skin_variance > 12:
+                return 0.71, "⚠️ Inconsistent skin tone across frames"
+            elif skin_variance > 8:
+                return 0.58, None
             else:
-                return 0.32, None
+                return 0.30, None
                 
         except Exception as e:
             logger.warning(f"Skin consistency check failed: {e}")
@@ -389,13 +390,13 @@ class TemporalConsistencyAgent:
             std_sharp = np.std(edge_sharpness)
             cv = std_sharp / (mean_sharp + 1e-8)
             
-            # High variation = flickering edges (suspicious)
-            if cv > 0.35:
-                return 0.70, "⚠️ Flickering edge artifacts detected"
-            elif cv > 0.25:
-                return 0.56, None
+            # More sensitive - face swaps have flickering edges
+            if cv > 0.30:
+                return 0.73, "⚠️ Flickering edge artifacts detected"
+            elif cv > 0.20:
+                return 0.59, None
             else:
-                return 0.33, None
+                return 0.31, None
                 
         except Exception as e:
             logger.warning(f"Edge consistency check failed: {e}")
@@ -432,13 +433,13 @@ class TemporalConsistencyAgent:
             flow_diff = np.diff(flow_magnitudes)
             max_jump = np.max(np.abs(flow_diff))
             
-            # Large sudden jumps = unnatural motion (suspicious)
-            if max_jump > 3.0:
-                return 0.69, "⚠️ Unnatural motion patterns detected"
-            elif max_jump > 2.0:
-                return 0.54, None
+            # More sensitive - face swaps have motion discontinuities
+            if max_jump > 2.5:
+                return 0.72, "⚠️ Unnatural motion patterns detected"
+            elif max_jump > 1.5:
+                return 0.57, None
             else:
-                return 0.34, None
+                return 0.32, None
                 
         except Exception as e:
             logger.warning(f"Optical flow check failed: {e}")
@@ -1173,8 +1174,9 @@ class DeepfakeAuthenticator:
                 logger.info(f"Temporal analysis: score={temporal_result['temporal_fake_score']:.3f}")
                 
                 # Blend temporal score with visual score
-                temporal_weight = 0.25  # 25% weight to temporal analysis
-                visual_weight = 0.75    # 75% weight to visual analysis
+                # Increase temporal weight to 35% for better face swap detection
+                temporal_weight = 0.35  # 35% weight to temporal analysis
+                visual_weight = 0.65    # 65% weight to visual analysis
                 
                 original_prob = overall_prob
                 overall_prob = (overall_prob * visual_weight + 
